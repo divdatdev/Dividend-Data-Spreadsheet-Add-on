@@ -2,6 +2,8 @@
 This add-on provides custom functions for fetching dividend, financial, and stock data from Dividend Data. It includes tools for dividends, statements, metrics, ratios, growth, quotes, profiles, funds, segments, KPIs, commodities, and batch quotes.
 To use, install the add-on in Google Sheets and use the functions in cells.
 
+_Below, I'll explain each of the functions available:_
+
 ## DIVIDENDDATA
 ### Description
 Retrieves various dividend-related data for a single stock symbol. This function is useful for analyzing a company's dividend payments, yields, growth trends, and sustainability through payout ratios. It can return single values for quick metrics or tables for historical data.
