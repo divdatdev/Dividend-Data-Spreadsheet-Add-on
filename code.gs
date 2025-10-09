@@ -14,11 +14,6 @@ function getApiKey() {
 }
 
 
-function testGetUserEmail() {
-  const email = Session.getActiveUser().getEmail();
-  Logger.log('User Email: ' + email);  // This will log to the Executions view
-}
-
 // Helper function for cached API fetch
 function fetchWithCache(url, ttl = 300) {
   const cache = CacheService.getScriptCache();
@@ -37,7 +32,7 @@ function fetchWithCache(url, ttl = 300) {
 // Helper function to calculate dividend CAGR for a given period
 function getDividendCAGR(symbol, years) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) throw new Error('API key not set. Please run setApiKey() to configure.');
 
   const url = `https://financialmodelingprep.com/stable/dividends?symbol=${symbol}&apikey=${apiKey}`;
   const content = fetchWithCache(url, 3600);  // 1 hour for dividends
@@ -55,7 +50,7 @@ function getDividendCAGR(symbol, years) {
     case 3: daysBack = 1095; break;
     case 5: daysBack = 1825; break;
     case 10: daysBack = 3650; break;
-    default: throw new Error('Invalid years for CAGR');
+    default: throw new Error('Invalid years parameter for CAGR. Use 1, 3, 5, or 10.');
   }
 
   const pastThreshold = new Date(latestDate.getTime() - daysBack * 24 * 60 * 60 * 1000);
@@ -82,22 +77,19 @@ function getDividendCAGR(symbol, years) {
 }
 
 
-
-
 // FUNCTIONS
 
-
 /**
- * Main dividend function: =DIVIDENDDATA("MSFT", "fwd_payout") or =DIVIDENDDATA("MSFT", "history", TRUE)
- * @param {string} symbol - Ticker (e.g., MSFT)
- * @param {string} metric - fwd_payout | ttm_payout | fwd_yield | ttm_yield | frequency | history | growth | 1Y_CAGR | 3Y_CAGR | 5Y_CAGR | 10Y_CAGR | payout_ratio | fcf_payout_ratio
- * @param {boolean} [showHeaders=false] - Include header row for tables (e.g., history)
- * @return {string|array} - Value or table
+ * Retrieves dividend data for a stock. Returns values or tables for metrics like payouts, yields, history, growth, and ratios.
+ * @param {string} symbol - Stock ticker symbol (e.g., MSFT).
+ * @param {string} [metric="fwd_payout"] - Metric to retrieve: fwd_payout, ttm_payout, fwd_yield, ttm_yield, frequency, history, growth, 1y_cagr, 3y_cagr, 5y_cagr, 10y_cagr, payout_ratio, fcf_payout_ratio.
+ * @param {boolean} [showHeaders=false] - Include headers for history or growth tables.
+ * @return {string|number|array} - Dividend data.
  * @customfunction
  */
 function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
     symbol = symbol.toUpperCase();
@@ -126,11 +118,10 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
       case 'fwd_yield':
         // Replicate your dividend summary (annual_dividend / price)
         url = `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${apiKey}`;
-        console.log(url);
         content = fetchWithCache(url, 60);  // Short for quotes
         data = JSON.parse(content);
 
-        if (data.length === 0) throw new Error(`No data for ${symbol}`);
+        if (data.length === 0) return 'No quote data available for symbol ' + symbol;
         const price = data[0].price;
         const fwd_dividend = DIVIDENDDATA(symbol, 'fwd_payout');
         if (fwd_dividend.length === 0) return 0;
@@ -147,7 +138,7 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
         url = `https://financialmodelingprep.com/stable/dividends?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 3600);
         data = JSON.parse(content);
-        if (data.length === 0) return 0;
+        if (data.length === 0) return 'No dividend data available for symbol ' + symbol;
         return data[0].frequency;
 
       case 'history':
@@ -156,7 +147,7 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
         content = fetchWithCache(url, 3600);
         data = JSON.parse(content);
 
-        if (data.length === 0) return [['No data for the provided ticker symbol']];
+        if (data.length === 0) return [['No dividend history available for symbol ' + symbol]];
 
         // Clean and map to 2D array (fix for Sheets spilling)
         let cleaned = data.map(row => [
@@ -171,7 +162,7 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
 
         // Optional headers
         if (showHeaders) {
-          cleaned.unshift(['Declartion Date', 'Record Date', 'Payment Date', 'Adjusted Dividend', 'Dividend', 'Yield', 'Frequency']);
+          cleaned.unshift(['Declaration Date', 'Record Date', 'Payment Date', 'Adjusted Dividend', 'Dividend', 'Yield', 'Frequency']);
         }
 
         return cleaned;  // Latest first (no reverse)
@@ -179,7 +170,7 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
       case 'growth':
         // Replicate your dividend_growth_calc: % change YoY from history
         const histData = DIVIDENDDATA(symbol, 'history');  // Get without headers
-        if (histData.length < 2) return [['Insufficient data']];
+        if (histData.length < 2) return [['Insufficient dividend history for growth calculation for symbol ' + symbol]];
 
         // Data is latest first (descending dates)
         // For growth, calculate (current - previous) / abs(previous), where previous is older (next row)
@@ -217,7 +208,7 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
         content = fetchWithCache(url, 3600);
         data = JSON.parse(content);
 
-        if (data.length === 0) return NaN;
+        if (data.length === 0) return 'No ratio data available for symbol ' + symbol;
         const payoutRatio = data[0].dividendPayoutRatio || 0;
         return payoutRatio;  // Raw number (user formats as % in Sheets)
 
@@ -227,34 +218,34 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
         content = fetchWithCache(url, 3600);
         data = JSON.parse(content);
 
-        if (data.length === 0) return NaN;
+        if (data.length === 0) return 'No ratio data available for symbol ' + symbol;
         const divPerShare = data[0].dividendPerShare || 0;
         const fcfPerShare = data[0].freeCashFlowPerShare || 0;
-        return fcfPerShare > 0 ? (divPerShare / fcfPerShare) : NaN;  // Raw number or NaN
+        return fcfPerShare > 0 ? (divPerShare / fcfPerShare) : 0;  // Raw number or 0
 
       default:
-        throw new Error(`Invalid metric: ${metric}. Use: yield, history, growth, payout, fcfPayout`);
+        return 'Invalid metric: ' + metric + '. Valid metrics are: fwd_payout, ttm_payout, fwd_yield, ttm_yield, frequency, history, growth, 1y_cagr, 3y_cagr, 5y_cagr, 10y_cagr, payout_ratio, fcf_payout_ratio.';
     }
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching data for symbol ' + symbol + ' and metric ' + metric + '. Please check the symbol and parameters.';
   }
 }
 
 
 /**
- * Fetch batch dividend data: =DIVIDENDDATA_BATCH("MSFT,KMB,O", "fwd_payout,yield", TRUE)
- * @param {string} symbols - Comma-separated tickers (e.g., MSFT,KMB)
- * @param {string} [metric="fwd_payout"] - Comma-separated metrics: adjdividend,dividend,recorddate,paymentdate,declarationdate,yield,frequency or "all" or "fwd_payout" or "history"
- * @param {boolean} [showHeaders] - Include header row and symbol column (defaults to TRUE if metric="all" or "history", else FALSE)
- * @return {array} - Table or column(s) of dividend data
+ * Retrieves batch dividend data for multiple stocks. Returns table with latest or historical data for metrics like payouts or yields.
+ * @param {string} symbols - Comma-separated tickers (e.g., MSFT,KMB,O).
+ * @param {string} [metric="fwd_payout"] - Metrics: adjdividend, dividend, recorddate, paymentdate, declarationdate, yield, frequency, fwd_payout, "all", or "history".
+ * @param {boolean} [showHeaders] - Include headers (defaults based on metric).
+ * @return {array} - Dividend table.
  * @customfunction
  */
 function DIVIDENDDATA_BATCH(symbols, metric = "fwd_payout", showHeaders) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
-    if (!symbols) throw new Error('Symbols required');
+    if (!symbols) return 'Symbols parameter is required.';
 
     // Process symbols
     const symbolArray = symbols.split(',').map(s => s.trim().toUpperCase());
@@ -264,7 +255,7 @@ function DIVIDENDDATA_BATCH(symbols, metric = "fwd_payout", showHeaders) {
     const content = fetchWithCache(url, 3600);
     const data = JSON.parse(content);
 
-    if (data.length === 0) return [['No data for the provided symbols']];
+    if (data.length === 0) return [['No dividend data available for the provided symbols']];
 
     // Group by symbol and sort each group by date desc
     const dataMap = new Map();
@@ -307,7 +298,7 @@ function DIVIDENDDATA_BATCH(symbols, metric = "fwd_payout", showHeaders) {
       requested = loweredMetric.split(',').map(m => m.trim());
       for (let m of requested) {
         if (m !== "fwd_payout" && !allMetrics.includes(m)) {
-          throw new Error(`Invalid metric: ${m}. Use: adjdividend, dividend, recorddate, paymentdate, declarationdate, yield, frequency, fwd_payout or "all" or "history"`);
+          return 'Invalid metric: ' + m + '. Valid metrics are: adjdividend, dividend, recorddate, paymentdate, declarationdate, yield, frequency, fwd_payout, "all", or "history".';
         }
       }
     }
@@ -386,24 +377,24 @@ function DIVIDENDDATA_BATCH(symbols, metric = "fwd_payout", showHeaders) {
     }
 
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching batch dividend data for symbols ' + symbols + ' and metric ' + metric + '. Please check the symbols and parameters.';
   }
 }
 
 
 /**
- * Main dividend function: =DIVIDENDDATA_STATEMENT("MSFT", "income") or =DIVIDENDDATA_STATEMENT("AAPL", "cash_flow",TRUE, "Q1", "2025")
- * @param {string} symbol - Ticker (e.g., MSFT)
- * @param {string} metric - income | balance | cash_flow
- * @param {boolean} [showHeaders=false] - Include header row for tables
- * @param {string} period - FY | Q1 | Q2 | Q3 | Q4 | annual | quarter | ttm
- * @param {string} year - (e.g., 2025)
- * @return {string|array} - Value or table
+ * Retrieves full financial statements for a stock. Returns table with income, balance, or cash flow data, filtered by period and year.
+ * @param {string} symbol - Stock ticker symbol (e.g., MSFT).
+ * @param {string} metric - Statement type: income, balance, cash_flow.
+ * @param {boolean} [showHeaders=false] - Include headers.
+ * @param {string} [period=''] - Period: FY, Q1, Q2, Q3, Q4, annual, quarter, ttm.
+ * @param {string} [year=''] - Year filter (e.g., 2025).
+ * @return {array} - Statement table.
  * @customfunction
  */
 function DIVIDENDDATA_STATEMENT(symbol, metric, showHeaders = false, period = '', year = '') {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
     symbol = symbol.toUpperCase();
@@ -419,7 +410,7 @@ function DIVIDENDDATA_STATEMENT(symbol, metric, showHeaders = false, period = ''
         endpoint = 'cash-flow-statement';
         break;
       default:
-        throw new Error(`Invalid metric: ${metric}. Use: income, balance, cash_flow`);
+        return 'Invalid metric: ' + metric + '. Valid metrics are: income, balance, cash_flow.';
     }
 
     let url;
@@ -436,12 +427,12 @@ function DIVIDENDDATA_STATEMENT(symbol, metric, showHeaders = false, period = ''
     const content = fetchWithCache(url, 3600);
     let data = JSON.parse(content);
 
-    if (data.length === 0) return [['No data for the provided ticker symbol']];
+    if (data.length === 0) return [['No statement data available for symbol ' + symbol + ' and metric ' + metric]];
 
     // Filter by year if provided (works for both regular and TTM)
     if (year) {
       data = data.filter(row => row.fiscalYear === year);
-      if (data.length === 0) return [['No data for specified year']];
+      if (data.length === 0) return [['No data available for the specified year ' + year]];
     }
 
     // Sort by date descending (latest first)
@@ -477,25 +468,25 @@ function DIVIDENDDATA_STATEMENT(symbol, metric, showHeaders = false, period = ''
     return table;
 
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching statement data for symbol ' + symbol + ', metric ' + metric + ', period ' + period + ', year ' + year + '. Please check the parameters.';
   }
 
 }
 
 
 /**
- * Fetch a specific metric from financial statements: =DIVIDENDDATA_METRICS("MSFT", "revenue") or =DIVIDENDDATA_METRICS("MSFT", "freeCashFlow", true)
- * @param {string} symbol - Ticker (e.g., MSFT)
- * @param {string} metric - The specific metric (e.g., revenue, netIncome, freeCashFlow)
- * @param {boolean} [showHeaders=false] - If true, return history table with headers
- * @param {string} period - annual | quarter | ttm
- * @param {string} year - (e.g., 2025)
- * @return {number|array} - Single value or table of date and metric
+ * Retrieves specific metric from statements. Returns latest value or history table for figures like revenue or freeCashFlow.
+ * @param {string} symbol - Stock ticker symbol (e.g., MSFT).
+ * @param {string} metric - Metric: revenue, netIncome, freeCashFlow, eps, totalAssets, totalDebt, etc. (see code for full list).
+ * @param {boolean} [showHeaders=false] - Return history table if true.
+ * @param {string} [period=''] - Period: annual, quarter, ttm.
+ * @param {string} [year=''] - Year filter.
+ * @return {number|array} - Metric value or table.
  * @customfunction
  */
 function DIVIDENDDATA_METRICS(symbol, metric, showHeaders = false, period = '', year = '') {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   const metricToStatement = {
   // Income statement metrics
@@ -577,7 +568,7 @@ function DIVIDENDDATA_METRICS(symbol, metric, showHeaders = false, period = '', 
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
     const statement = metricToStatement[loweredMetric];
-    if (!statement) throw new Error(`Invalid metric: ${metric}`);
+    if (!statement) return 'Invalid metric: ' + metric + '. Please check available metrics in function description.';
 
     // Function to format headers to human-readable (camelCase/snake_case to Title Case with spaces)
     function formatHeader(key) {
@@ -588,20 +579,20 @@ function DIVIDENDDATA_METRICS(symbol, metric, showHeaders = false, period = '', 
     }
 
     const properRawKey = metricToRawKey[loweredMetric];
-    if (!properRawKey) throw new Error(`Invalid metric: ${metric}`);
+    if (!properRawKey) return 'Invalid metric: ' + metric + '. Please check available metrics in function description.';
 
     const formattedMetric = formatHeader(properRawKey);
 
     const fullData = DIVIDENDDATA_STATEMENT(symbol, statement, true, period, year);
-    if (typeof fullData === 'string' && fullData.startsWith('Error')) return fullData;
-    if (fullData.length === 0 || fullData[0].length === 0) return NaN;
+    if (typeof fullData === 'string') return fullData; // Error from statement function
+    if (fullData.length === 0 || fullData[0].length === 0) return 0;
 
     const headers = fullData[0];
     const dataRows = fullData.slice(1);
-    if (dataRows.length === 0) return NaN;
+    if (dataRows.length === 0) return 0;
 
     let colIndex = headers.indexOf(formattedMetric);
-    if (colIndex === -1) throw new Error(`Metric ${metric} not found in statement`);
+    if (colIndex === -1) return 'Metric ' + metric + ' not found in the statement data for symbol ' + symbol;
 
     if (showHeaders) {
       // Return history table: Date and metric
@@ -616,25 +607,25 @@ function DIVIDENDDATA_METRICS(symbol, metric, showHeaders = false, period = '', 
       return dataRows[0][colIndex];
     }
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching metric ' + metric + ' for symbol ' + symbol + ', period ' + period + ', year ' + year + '. Please check the parameters.';
   }
 }
 
 
 
 /**
- * Fetch a specific ratio or key metric: =DIVIDENDDATA_RATIOS("MSFT", "currentRatio") or =DIVIDENDDATA_RATIOS("MSFT", "peRatio", true)
- * @param {string} symbol - Ticker (e.g., MSFT)
- * @param {string} metric - The specific ratio or key metric (e.g., currentRatio, quickRatio, revenuePerShare)
- * @param {boolean} [showHeaders=false] - If true, return history table with headers
- * @param {string} period - annual | quarter | ttm
- * @param {string} year - (e.g., 2025)
- * @return {number|array} - Single value or table of date and metric
+ * Retrieves financial ratio or key metric. Returns latest value or history for ratios like currentRatio or peRatio.
+ * @param {string} symbol - Stock ticker symbol (e.g., MSFT).
+ * @param {string} metric - Metric: currentRatio, peRatio, payoutRatio, roic, debtToEquity, etc. (see code for full list).
+ * @param {boolean} [showHeaders=false] - Return history table if true.
+ * @param {string} [period=''] - Period: annual, quarter, ttm.
+ * @param {string} [year=''] - Year filter.
+ * @return {number|array} - Ratio value or table.
  * @customfunction
  */
 function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', year = '') {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   const metricToEndpoint = {
     // Key Metrics
@@ -756,10 +747,10 @@ function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', y
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
     const endpoint = metricToEndpoint[loweredMetric];
-    if (!endpoint) throw new Error(`Invalid metric: ${metric}`);
+    if (!endpoint) return 'Invalid metric: ' + metric + '. Please check available metrics in function description.';
 
     let properRawKey = metricToRawKey[loweredMetric];
-    if (!properRawKey) throw new Error(`Invalid metric: ${metric}`);
+    if (!properRawKey) return 'Invalid metric: ' + metric + '. Please check available metrics in function description.';
 
     function formatHeader(key) {
       return key
@@ -785,12 +776,12 @@ function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', y
     const content = fetchWithCache(url, 3600);
     let data = JSON.parse(content);
 
-    if (data.length === 0) return NaN;
+    if (data.length === 0) return 'No ratio data available for symbol ' + symbol + ' and metric ' + metric;
 
     // Filter by year if provided
     if (year) {
       data = data.filter(row => row.calendarYear === year);
-      if (data.length === 0) return NaN;
+      if (data.length === 0) return 'No data available for the specified year ' + year;
     }
 
     // Sort by date descending (latest first)
@@ -798,14 +789,14 @@ function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', y
 
     const rawHeaders = Object.keys(data[0]);
 
-    if (!rawHeaders.includes(properRawKey)) throw new Error(`Metric ${metric} not found in data`);
+    if (!rawHeaders.includes(properRawKey)) return 'Metric ' + metric + ' not found in the data for symbol ' + symbol;
 
     const formattedMetric = formatHeader(properRawKey.replace('TTM', ''));
 
     // Handle TTM special case (no 'date')
     if (loweredPeriod === 'ttm' && !rawHeaders.includes('date')) {
-      if (data.length !== 1) throw new Error('Unexpected data structure for TTM');
-      const value = data[0][properRawKey] || NaN;
+      if (data.length !== 1) return 'Unexpected data structure for TTM metric ' + metric;
+      const value = data[0][properRawKey] || 0;
       if (showHeaders) {
         return [['Period', formattedMetric], ['TTM', value]];
       } else {
@@ -814,18 +805,18 @@ function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', y
     }
 
     // Normal case with date
-    if (!rawHeaders.includes('date')) throw new Error('No date field in data');
+    if (!rawHeaders.includes('date')) return 'No date field found in data for metric ' + metric;
 
     if (showHeaders) {
-      let table = data.map(row => [new Date(row.date), row[properRawKey] || NaN]);
+      let table = data.map(row => [new Date(row.date), row[properRawKey] || 0]);
       table.unshift(['Date', formattedMetric]);
       return table;
     } else {
-      return data[0][properRawKey] || NaN;
+      return data[0][properRawKey] || 0;
     }
 
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching ratio ' + metric + ' for symbol ' + symbol + ', period ' + period + ', year ' + year + '. Please check the parameters.';
   }
 
 }
@@ -835,18 +826,18 @@ function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', y
 
 
 /**
- * Fetch a specific growth metric: =DIVIDENDDATA_GROWTH("MSFT", "revenuegrowth") or =DIVIDENDDATA_GROWTH("MSFT", "epsgrowth", true)
- * @param {string} symbol - Ticker (e.g., MSFT)
- * @param {string} metric - The specific growth metric (e.g., revenuegrowth, netincomegrowth)
- * @param {boolean} [showHeaders=false] - If true, return history table with headers
- * @param {string} period - annual | quarter | q1 | q2 | q3 | q4 | fy
- * @param {string} year - (e.g., 2025)
- * @return {number|array} - Single value or table of date and metric
+ * Retrieves growth metric. Returns latest rate or history for growth like revenueGrowth or epsGrowth.
+ * @param {string} symbol - Stock ticker symbol (e.g., MSFT).
+ * @param {string} metric - Metric: revenueGrowth, epsGrowth, dividendsPerShareGrowth, etc. (see code for full list).
+ * @param {boolean} [showHeaders=false] - Return history table if true.
+ * @param {string} [period=''] - Period: annual, quarter, q1, q2, q3, q4, fy.
+ * @param {string} [year=''] - Year filter.
+ * @return {number|array} - Growth value or table.
  * @customfunction
  */
 function DIVIDENDDATA_GROWTH(symbol, metric, showHeaders = false, period = '', year = '') {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   const metricToRawKey = {
     'revenuegrowth': 'revenueGrowth',
@@ -894,7 +885,7 @@ function DIVIDENDDATA_GROWTH(symbol, metric, showHeaders = false, period = '', y
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
     const properRawKey = metricToRawKey[loweredMetric];
-    if (!properRawKey) throw new Error(`Invalid metric: ${metric}`);
+    if (!properRawKey) return 'Invalid metric: ' + metric + '. Please check available metrics in function description.';
 
     function formatHeader(key) {
       return key
@@ -924,12 +915,12 @@ function DIVIDENDDATA_GROWTH(symbol, metric, showHeaders = false, period = '', y
 
     if (!Array.isArray(data)) data = [data];
 
-    if (data.length === 0) return NaN;
+    if (data.length === 0) return 'No growth data available for symbol ' + symbol + ' and metric ' + metric;
 
     // Filter by year if provided
     if (year) {
       data = data.filter(row => row.fiscalYear === year);
-      if (data.length === 0) return NaN;
+      if (data.length === 0) return 'No data available for the specified year ' + year;
     }
 
     // Sort by date descending (latest first)
@@ -937,35 +928,35 @@ function DIVIDENDDATA_GROWTH(symbol, metric, showHeaders = false, period = '', y
 
     const rawHeaders = Object.keys(data[0]);
 
-    if (!rawHeaders.includes(properRawKey)) throw new Error(`Metric ${metric} not found in data`);
+    if (!rawHeaders.includes(properRawKey)) return 'Metric ' + metric + ' not found in the data for symbol ' + symbol;
 
     if (showHeaders) {
-      let table = data.map(row => [new Date(row.date), row[properRawKey] || NaN]);
+      let table = data.map(row => [new Date(row.date), row[properRawKey] || 0]);
       table.unshift(['Date', formattedMetric]);
       return table;
     } else {
-      return data[0][properRawKey] || NaN;
+      return data[0][properRawKey] || 0;
     }
 
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching growth metric ' + metric + ' for symbol ' + symbol + ', period ' + period + ', year ' + year + '. Please check the parameters.';
   }
 }
 
 
 /**
- * Fetch stock quote data: =DIVIDENDDATA_QUOTE("AAPL", "price") or =DIVIDENDDATA_QUOTE("AAPL", "full", , , TRUE) or =DIVIDENDDATA_QUOTE("AAPL", "history", "2025-06-10", "2025-09-10", TRUE)
- * @param {string} symbol - Ticker (e.g., AAPL)
- * @param {string} [metric="price"] - price | change | volume | full | history
- * @param {string} [fromDate] - Start date for history (YYYY-MM-DD, optional)
- * @param {string} [toDate] - End date for history (YYYY-MM-DD, optional)
- * @param {boolean} [showHeaders=true] - Include header row for 'full' or 'history'
- * @return {string|number|array} - Value or table
+ * Retrieves stock quote data. Returns price, change, volume, full details, or history.
+ * @param {string} symbol - Stock ticker symbol (e.g., AAPL).
+ * @param {string} [metric="price"] - Metric: price, change, volume, full, history.
+ * @param {string} [fromDate] - Start date for history (YYYY-MM-DD).
+ * @param {string} [toDate] - End date for history (YYYY-MM-DD).
+ * @param {boolean} [showHeaders=true] - Include headers for full or history.
+ * @return {string|number|array} - Quote data.
  * @customfunction
  */
 function DIVIDENDDATA_QUOTE(symbol, metric = "price", fromDate, toDate, showHeaders = true) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
     symbol = symbol.toUpperCase();
@@ -1015,7 +1006,7 @@ function DIVIDENDDATA_QUOTE(symbol, metric = "price", fromDate, toDate, showHead
       const content = fetchWithCache(url, 60);
       const data = JSON.parse(content);
 
-      if (data.length === 0) return 'No data for the provided ticker symbol';
+      if (data.length === 0) return 'No quote data available for symbol ' + symbol;
 
       const item = data[0];
       switch (loweredMetric) {
@@ -1028,7 +1019,7 @@ function DIVIDENDDATA_QUOTE(symbol, metric = "price", fromDate, toDate, showHead
       const content = fetchWithCache(url, 60);
       const data = JSON.parse(content);
 
-      if (data.length === 0) return 'No data for the provided ticker symbol';
+      if (data.length === 0) return 'No full quote data available for symbol ' + symbol;
 
       const item = data[0];
       const rawHeaders = Object.keys(item);
@@ -1058,17 +1049,17 @@ function DIVIDENDDATA_QUOTE(symbol, metric = "price", fromDate, toDate, showHead
       const content = fetchWithCache(url, 300);  // 5 min for history
       const data = JSON.parse(content);
 
-      if (data.length === 0) return [['No historical data']];
+      if (data.length === 0) return [['No historical quote data available for symbol ' + symbol]];
 
       // Sort by date descending (latest first)
       data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-      const rawHeaders = Object.keys(data[0]);
-      const formattedHeaders = rawHeaders.map(formatHeader);
+      const desiredKeys = ['date', 'price', 'volume'];
+      const formattedHeaders = desiredKeys.map(formatHeader);
 
-      let table = data.map(row => rawHeaders.map(key => {
+      let table = data.map(row => desiredKeys.map(key => {
         let value = row[key];
-        if (key === 'date') {
+        if (key.toLowerCase() === 'date') {
           return new Date(value);
         }
         return value;
@@ -1080,25 +1071,25 @@ function DIVIDENDDATA_QUOTE(symbol, metric = "price", fromDate, toDate, showHead
 
       return table;
     } else {
-      throw new Error(`Invalid metric: ${metric}. Use: price, change, volume, full, history`);
+      return 'Invalid metric: ' + metric + '. Valid metrics are: price, change, volume, full, history.';
     }
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching quote for symbol ' + symbol + ' and metric ' + metric + '. Please check the symbol and parameters.';
   }
 }
 
 
 /**
- * Fetch company profile data: =DIVIDENDDATA_PROFILE("MSFT", "marketcap") or =DIVIDENDDATA_PROFILE("MSFT", "full", true)
- * @param {string} symbol - Ticker (e.g., SCHD)
- * @param {string} metric - symbol | price | marketcap | beta | lastdividend | range | change | changepercentage | volume | averagevolume | companyname | currency | cik | isin | cusip | exchangefullname | exchange | industry | website | description | ceo | sector | country | fulltimeemployees | phone | address | city | state | zip | image | ipodate | defaultimage | isetf | isactivelytrading | isadr | isfund | full
- * @param {boolean} [showHeaders=false] - Include header row for 'full'
- * @return {string|number|array} - Value or table
+ * Retrieves company profile. Returns specific detail or full table for info like marketcap or sector.
+ * @param {string} symbol - Stock ticker symbol (e.g., MSFT).
+ * @param {string} metric - Metric: marketcap, beta, lastdividend, companyname, sector, etc., or "full".
+ * @param {boolean} [showHeaders=false] - Include headers for full.
+ * @return {string|number|array} - Profile data.
  * @customfunction
  */
 function DIVIDENDDATA_PROFILE(symbol, metric, showHeaders = false) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
     symbol = symbol.toUpperCase();
@@ -1106,7 +1097,7 @@ function DIVIDENDDATA_PROFILE(symbol, metric, showHeaders = false) {
     const content = fetchWithCache(url, 3600);
     const data = JSON.parse(content);
 
-    if (data.length === 0) return 'No data for the provided ticker symbol';
+    if (data.length === 0) return 'No profile data available for symbol ' + symbol;
 
     const loweredMetric = metric.toLowerCase();
 
@@ -1179,7 +1170,7 @@ function DIVIDENDDATA_PROFILE(symbol, metric, showHeaders = false) {
       };
 
       const rawKey = metricToRawKey[loweredMetric];
-      if (!rawKey) throw new Error(`Invalid metric: ${metric}`);
+      if (!rawKey) return 'Invalid metric: ' + metric + '. Valid metrics are: symbol, price, marketcap, beta, lastdividend, range, change, changepercentage, volume, averagevolume, companyname, currency, cik, isin, cusip, exchangefullname, exchange, industry, website, description, ceo, sector, country, fulltimeemployees, phone, address, city, state, zip, image, ipodate, defaultimage, isetf, isactivelytrading, isadr, isfund, or "full".';
 
       let value = data[0][rawKey];
       if (rawKey.toLowerCase() === 'ipodate') {
@@ -1188,23 +1179,23 @@ function DIVIDENDDATA_PROFILE(symbol, metric, showHeaders = false) {
       return value !== null ? value : '';
     }
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching profile for symbol ' + symbol + ' and metric ' + metric + '. Please check the symbol and parameters.';
   }
 }
 
 
 
 /**
- * Fetch ETF/Mutual Fund data: =DIVIDENDDATA_FUND("SPY", "holdings", true) or =DIVIDENDDATA_FUND("SPY", "expenseratio")
- * @param {string} symbol - Ticker (e.g., SPY)
- * @param {string} metric - holdings | countryweighting | symbol | name | description | isin | assetclass | securitycusip | domicile | website | etfcompany | expenseratio | assetsundermanagement | avgvolume | inceptiondate | nav | navcurrency | holdingscount | updatedat | sectorslist
- * @param {boolean} [showHeaders=false] - Include header row for tables (holdings, countryweighting, sectorslist)
- * @return {string|number|array} - Value or table
+ * Retrieves ETF/fund data. Returns details like expenseRatio or tables for holdings.
+ * @param {string} symbol - Fund ticker (e.g., SPY).
+ * @param {string} metric - Metric: holdings, countryweighting, symbol, name, description, isin, assetclass, securitycusip, domicile, website, etfcompany, expenseratio, assetsundermanagement, avgvolume, inceptiondate, nav, navcurrency, holdingscount, updatedat, sectorslist.
+ * @param {boolean} [showHeaders=true] - Include headers for tables.
+ * @return {string|number|array} - Fund data.
  * @customfunction
  */
-function DIVIDENDDATA_FUND(symbol, metric, showHeaders = false) {
+function DIVIDENDDATA_FUND(symbol, metric, showHeaders = true) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
     symbol = symbol.toUpperCase();
@@ -1216,7 +1207,7 @@ function DIVIDENDDATA_FUND(symbol, metric, showHeaders = false) {
       const infoContent = fetchWithCache(infoUrl, 3600);
       infoData = JSON.parse(infoContent);
 
-      if (infoData.length === 0) return 'No data for the provided ticker symbol';
+      if (infoData.length === 0) return 'No fund data available for symbol ' + symbol;
     }
 
     switch (loweredMetric) {
@@ -1225,7 +1216,7 @@ function DIVIDENDDATA_FUND(symbol, metric, showHeaders = false) {
         const holdingsContent = fetchWithCache(holdingsUrl, 3600);
         const holdingsData = JSON.parse(holdingsContent);
 
-        if (holdingsData.length === 0) return [['No holdings data']];
+        if (holdingsData.length === 0) return [['No holdings data available for symbol ' + symbol]];
 
         const holdingsHeaders = Object.keys(holdingsData[0]);
 
@@ -1255,7 +1246,7 @@ function DIVIDENDDATA_FUND(symbol, metric, showHeaders = false) {
         const cwContent = fetchWithCache(cwUrl, 3600);
         const cwData = JSON.parse(cwContent);
 
-        if (cwData.length === 0) return [['No country weighting data']];
+        if (cwData.length === 0) return [['No country weighting data available for symbol ' + symbol]];
 
         const cwTable = cwData.map(row => [row.country, row.weightPercentage]);
 
@@ -1267,7 +1258,7 @@ function DIVIDENDDATA_FUND(symbol, metric, showHeaders = false) {
 
       case 'sectorslist':
         const sectors = infoData[0].sectorsList || [];
-        if (sectors.length === 0) return [['No sectors data']];
+        if (sectors.length === 0) return [['No sectors data available for symbol ' + symbol]];
 
         const sectorsTable = sectors.map(row => [row.industry, row.exposure]);
 
@@ -1299,7 +1290,7 @@ function DIVIDENDDATA_FUND(symbol, metric, showHeaders = false) {
         };
 
         const rawKey = metricToRawKey[loweredMetric];
-        if (!rawKey) throw new Error(`Invalid metric: ${metric}`);
+        if (!rawKey) return 'Invalid metric: ' + metric + '. Valid metrics are: holdings, countryweighting, symbol, name, description, isin, assetclass, securitycusip, domicile, website, etfcompany, expenseratio, assetsundermanagement, avgvolume, inceptiondate, nav, navcurrency, holdingscount, updatedat, sectorslist.';
 
         let value = infoData[0][rawKey];
 
@@ -1310,23 +1301,23 @@ function DIVIDENDDATA_FUND(symbol, metric, showHeaders = false) {
         return value !== undefined ? value : '';
     }
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching fund data for symbol ' + symbol + ' and metric ' + metric + '. Please check the symbol and parameters.';
   }
 }
 
 /**
- * Fetch revenue segments data: =DIVIDENDDATA_SEGMENTS("AAPL", "products", "annual", "2024", true)
- * @param {string} symbol - Ticker (e.g., AAPL)
- * @param {string} metric - products | geographic
- * @param {string} [period=annual] - annual | quarter
- * @param {string} [year] - Filter to specific year (e.g., 2024)
- * @param {boolean} [showHeaders=false] - Include header row for table
- * @return {array} - Table of segments data
+ * Retrieves revenue segments. Returns table by product or geography, filtered by period and year.
+ * @param {string} symbol - Stock ticker symbol (e.g., AAPL).
+ * @param {string} metric - Type: products or geographic.
+ * @param {string} [period=annual] - Period: annual or quarter.
+ * @param {string} [year] - Year filter.
+ * @param {boolean} [showHeaders=true] - Include headers.
+ * @return {array} - Segments table.
  * @customfunction
  */
-function DIVIDENDDATA_SEGMENTS(symbol, metric, period = 'annual', year = '', showHeaders = false) {
+function DIVIDENDDATA_SEGMENTS(symbol, metric, period = 'annual', year = '', showHeaders = true) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
     symbol = symbol.toUpperCase();
@@ -1354,23 +1345,23 @@ function DIVIDENDDATA_SEGMENTS(symbol, metric, period = 'annual', year = '', sho
     } else if (loweredMetric === 'geographic') {
       endpoint = 'revenue-geographic-segmentation';
     } else {
-      throw new Error(`Invalid metric: ${metric}. Use: products or geographic`);
+      return 'Invalid metric: ' + metric + '. Valid metrics are: products or geographic.';
     }
 
     if (loweredPeriod !== 'annual' && loweredPeriod !== 'quarter') {
-      throw new Error(`Invalid period: ${period}. Use: annual or quarter`);
+      return 'Invalid period: ' + period + '. Valid periods are: annual or quarter.';
     }
 
     const url = `https://financialmodelingprep.com/stable/${endpoint}?symbol=${symbol}&period=${loweredPeriod}&apikey=${apiKey}`;
     const content = fetchWithCache(url, 3600);
     let data = JSON.parse(content);
 
-    if (data.length === 0) return [['No data for the provided ticker symbol']];
+    if (data.length === 0) return [['No segments data available for symbol ' + symbol + ' and metric ' + metric]];
 
     // Filter by year if provided
     if (filterYear) {
       data = data.filter(item => String(item.fiscalYear) === filterYear);
-      if (data.length === 0) return [['No data for specified year']];
+      if (data.length === 0) return [['No data available for the specified year ' + filterYear]];
     }
 
     // Sort by date descending (latest first)
@@ -1414,18 +1405,17 @@ function DIVIDENDDATA_SEGMENTS(symbol, metric, period = 'annual', year = '', sho
     return table;
 
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching segments for symbol ' + symbol + ', metric ' + metric + ', period ' + period + ', year ' + year + '. Please check the parameters.';
   }
 }
 
-
 /**
- * Fetch KPIs and segments data: =DIVIDENDDATA_KPIS("MSFT", "annual", "2025", TRUE)
- * @param {string} ticker - Ticker symbol (e.g., MSFT)
- * @param {string} [period=annual] - annual | quarterly
- * @param {string|number} [year] - Optional calendar year to filter
- * @param {boolean} [showheaders=TRUE] - Include header row
- * @return {array} - Table of KPIs and segments
+ * Retrieves KPIs and segments from Fiscal.ai. Returns table with year/quarter and metrics.
+ * @param {string} ticker - Stock ticker symbol (e.g., MSFT).
+ * @param {string} [period=annual] - Period: annual or quarterly.
+ * @param {string|number} [year] - Year filter.
+ * @param {boolean} [showheaders=TRUE] - Include headers.
+ * @return {array} - KPIs table.
  * @customfunction
  */
 function DIVIDENDDATA_KPIS(ticker, period = 'annual', year = '', showheaders = true) {
@@ -1435,7 +1425,7 @@ function DIVIDENDDATA_KPIS(ticker, period = 'annual', year = '', showheaders = t
     ticker = ticker.toUpperCase();
     const loweredPeriod = period.toLowerCase();
     if (loweredPeriod !== 'annual' && loweredPeriod !== 'quarterly') {
-      throw new Error('Period must be "annual" or "quarterly"');
+      return 'Invalid period: ' + period + '. Valid periods are: annual or quarterly.';
     }
 
     const periodType = 'annual%2Cquarterly';
@@ -1462,7 +1452,7 @@ function DIVIDENDDATA_KPIS(ticker, period = 'annual', year = '', showheaders = t
     }
 
     if (filteredData.length === 0) {
-      return [['No data available'], ['Data Powered By Fiscal.ai']];
+      return [['No KPI data available for ticker ' + ticker + ' and period ' + period], ['Data Powered By Fiscal.ai']];
     }
 
     // Sort by reportDate descending (latest first)
@@ -1504,23 +1494,23 @@ function DIVIDENDDATA_KPIS(ticker, period = 'annual', year = '', showheaders = t
     return table;
 
   } catch (error) {
-    return `Error: ${error.message}\nData Powered By Fiscal.ai`;
+    return 'An error occurred while fetching KPIs for ticker ' + ticker + ', period ' + period + ', year ' + year + '. Please check the parameters.\nData Powered By Fiscal.ai';
   }
 }
 
 /**
- * Fetch commodities data: =DIVIDENDDATA_COMMODITIES("CLUSD", "price") or =DIVIDENDDATA_COMMODITIES("GCUSD", "history", "2025-06-10", "2025-09-10", TRUE)
- * @param {string} symbol - Commodity symbol (e.g., CLUSD for Crude Oil)
- * @param {string} metric - list | price | fullquote | history
- * @param {string} [fromDate] - Start date for history (YYYY-MM-DD)
- * @param {string} [toDate] - End date for history (YYYY-MM-DD)
- * @param {boolean} [showHeaders] - Include header row for tables (list, fullquote, history)
- * @return {number|string|array} - Value or table
+ * Retrieves commodities data. Returns list, price, full quote, or history.
+ * @param {string} symbol - Commodity symbol (e.g., CLUSD).
+ * @param {string} metric - Metric: list, price, fullquote, history.
+ * @param {string} [fromDate] - Start date for history.
+ * @param {string} [toDate] - End date for history.
+ * @param {boolean} [showHeaders=true] - Include headers for tables.
+ * @return {number|string|array} - Commodities data.
  * @customfunction
  */
-function DIVIDENDDATA_COMMODITIES(symbol, metric, fromDate, toDate, showHeaders) {
+function DIVIDENDDATA_COMMODITIES(symbol, metric, fromDate, toDate, showHeaders = true) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
     let actualFromDate = fromDate;
@@ -1566,18 +1556,13 @@ function DIVIDENDDATA_COMMODITIES(symbol, metric, fromDate, toDate, showHeaders)
 
     const loweredMetric = metric.toLowerCase();
 
-    // Set default showHeaders based on metric if not provided
-    if (actualShowHeaders === undefined) {
-      actualShowHeaders = (loweredMetric === 'list');
-    }
-
     switch (loweredMetric) {
       case 'list':
         url = `https://financialmodelingprep.com/stable/commodities-list?apikey=${apiKey}`;
         content = fetchWithCache(url, 86400);  // 24 hours
         data = JSON.parse(content);
 
-        if (data.length === 0) return [['No commodities list data']];
+        if (data.length === 0) return [['No commodities list data available']];
 
         const rawHeaders = Object.keys(data[0]);
         const formattedHeaders = rawHeaders.map(formatHeader);
@@ -1592,13 +1577,13 @@ function DIVIDENDDATA_COMMODITIES(symbol, metric, fromDate, toDate, showHeaders)
 
       case 'price':
       case 'fullquote':
-        if (!symbol) throw new Error('Symbol required for price or fullquote');
+        if (!symbol) return 'Symbol parameter is required for price or fullquote.';
         symbol = symbol.toUpperCase();
         url = `https://financialmodelingprep.com/stable/quote?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 60);
         data = JSON.parse(content);
 
-        if (data.length === 0) return 'No data for the provided symbol';
+        if (data.length === 0) return 'No quote data available for symbol ' + symbol;
 
         if (loweredMetric === 'price') {
           return data[0].price || 0;
@@ -1625,15 +1610,17 @@ function DIVIDENDDATA_COMMODITIES(symbol, metric, fromDate, toDate, showHeaders)
         }
 
       case 'history':
-        if (!symbol) throw new Error('Symbol required for history');
+        if (!symbol) return 'Symbol parameter is required for history.';
         symbol = symbol.toUpperCase();
-        url = `https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${symbol}&apikey=${apiKey}`;
+        url = `https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${symbol}`;
         if (actualFromDate) url += `&from=${actualFromDate}`;
         if (actualToDate) url += `&to=${actualToDate}`;
+        url += `&apikey=${apiKey}`;
+        
         content = fetchWithCache(url, 300);
         data = JSON.parse(content);
 
-        if (data.length === 0) return [['No historical data']];
+        if (data.length === 0) return [['No historical data available for symbol ' + symbol]];
 
         // Sort by date descending (latest first)
         data.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -1656,27 +1643,27 @@ function DIVIDENDDATA_COMMODITIES(symbol, metric, fromDate, toDate, showHeaders)
         return historyTable;
 
       default:
-        throw new Error(`Invalid metric: ${metric}. Use: list, price, fullquote, history`);
+        return 'Invalid metric: ' + metric + '. Valid metrics are: list, price, fullquote, history.';
     }
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching commodities data for symbol ' + symbol + ' and metric ' + metric + '. Please check the parameters.';
   }
 }
 
 /**
- * Fetch batch stock quote data: =DIVIDENDDATA_QUOTE_BATCH("AAPL,MSFT,KMB,WBA", "price,change", TRUE)
- * @param {string} symbols - Comma-separated tickers (e.g., AAPL,MSFT)
- * @param {string} [metrics="all"] - Comma-separated metrics: price,change,volume or "all"
- * @param {boolean} [showHeaders] - Include header row and symbol column (defaults to TRUE if metrics="all", else FALSE)
- * @return {array} - Table or column(s) of quote data
+ * Retrieves batch quotes for stocks. Returns table with prices, changes, or volumes.
+ * @param {string} symbols - Comma-separated tickers (e.g., AAPL,MSFT).
+ * @param {string} [metrics="all"] - Metrics: price, change, volume, or "all".
+ * @param {boolean} [showHeaders] - Include headers (defaults based on metrics).
+ * @return {array} - Quotes table.
  * @customfunction
  */
 function DIVIDENDDATA_QUOTE_BATCH(symbols, metrics = "all", showHeaders) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('Set your FMP API key via setApiKey()');
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
-    if (!symbols) throw new Error('Symbols required');
+    if (!symbols) return 'Symbols parameter is required.';
 
     // Process symbols
     const symbolArray = symbols.split(',').map(s => s.trim().toUpperCase());
@@ -1686,7 +1673,7 @@ function DIVIDENDDATA_QUOTE_BATCH(symbols, metrics = "all", showHeaders) {
     const content = fetchWithCache(url, 60);
     const data = JSON.parse(content);
 
-    if (data.length === 0) return [['No data for the provided symbols']];
+    if (data.length === 0) return [['No quote data available for the provided symbols']];
 
     // Create map for preserving order and handling missing
     const dataMap = new Map(data.map(item => [item.symbol, item]));
@@ -1700,7 +1687,7 @@ function DIVIDENDDATA_QUOTE_BATCH(symbols, metrics = "all", showHeaders) {
       requested = metrics.split(',').map(m => m.trim().toLowerCase());
       for (let m of requested) {
         if (!allMetrics.includes(m)) {
-          throw new Error(`Invalid metric: ${m}. Use: price, change, volume or "all"`);
+          return 'Invalid metric: ' + m + '. Valid metrics are: price, change, volume or "all".';
         }
       }
     }
@@ -1736,161 +1723,37 @@ function DIVIDENDDATA_QUOTE_BATCH(symbols, metrics = "all", showHeaders) {
     return table;
 
   } catch (error) {
-    return `Error: ${error.message}`;
+    return 'An error occurred while fetching batch quotes for symbols ' + symbols + ' and metrics ' + metrics + '. Please check the parameters.';
   }
 }
-
-
-
-function getFinchatToken(uid, userTier) {
-  const endpoint = 'https://api.finchat.io/auth/generate-token';
-  const payload = { payload: { uid: uid, userTier: userTier } };
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'Authorization': 'Bearer ' + PropertiesService.getScriptProperties().getProperty('FINCHAT_MASTER_API_KEY') },
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true  // Add this to get full error response
-  };
-  try {
-    const response = UrlFetchApp.fetch(endpoint, options);
-    const code = response.getResponseCode();
-    const text = response.getContentText();
-    if (code !== 200) {
-      throw new Error('Token generation failed: HTTP ' + code + ' - ' + text);
-    }
-    Logger.log('Generated Token: ' + text);  // Log the token for debugging
-    return text;
-  } catch (e) {
-    Logger.log('Token Error: ' + e.message);  // Log for debugging
-    throw e;  // Propagate error to DIVIDENDDATA_AI
-  }
-}
-
-// Preset prompt mappings (customize as needed)
-const PROMPT_MAP = {
-  'Earnings Summary': 'Provide a detailed earnings summary for {ticker}, including recent quarterly results, YoY growth, and analyst expectations.',
-  'Bull/Bear': 'Give a balanced bull and bear case analysis for {ticker}, including key risks and opportunities.',
-  'News': 'Summarize the latest news and events for {ticker}, focusing on the past month.',
-  // Add more presets here, e.g., 'Dividend Analysis': 'Analyze the dividend history and yield for {ticker}.'
-};
-
-/**
- * Custom function for Sheets: =DIVIDENDDATA_AI(ticker, promptType)
- * @param {string} ticker - Stock ticker symbol (e.g., "AAPL")
- * @param {string} promptType - Preset prompt type (e.g., "Earnings Summary")
- * @return {string} AI-generated response
- * @customfunction
- */
-function DIVIDENDDATA_AI(ticker, promptType) {
-  if (!ticker || !promptType) {
-    return 'Error: Provide ticker and prompt type.';
-  }
-
-  const promptTemplate = PROMPT_MAP[promptType];
-  if (!promptTemplate) {
-    return 'Error: Invalid prompt type. Options: ' + Object.keys(PROMPT_MAP).join(', ');
-  }
-
-  const query = promptTemplate.replace('{ticker}', ticker.toUpperCase());
-
-  // Dynamically get the user's email as UID (like in app.R)
-  const userEmail = Session.getActiveUser().getEmail();
-  if (!userEmail) {
-    return 'Error: Unable to retrieve user email. Grant permission or check scopes.';
-  }
-  Logger.log('Using UID (email): ' + userEmail);  // Log for debugging
-
-  // Get token using the email as UID
-  const apiKey = getFinchatToken(userEmail, "paid");  // Assume "paid" tier; make dynamic if needed (e.g., check user properties)
-
-  const url = 'https://api.finchat.io/v1/query';
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    payload: JSON.stringify({ query: query }),
-    muteHttpExceptions: true,
-  };
-
-  try {
-    const response = UrlFetchApp.fetch(url, options);
-    const code = response.getResponseCode();
-    const text = response.getContentText();
-    Logger.log('Query Response Code: ' + code + ' - Text: ' + text);  // Log for debugging
-
-    if (code !== 200) {
-      return 'API Error: HTTP ' + code + ' - ' + text;  // Return plain-text errors directly
-    }
-
-    const json = JSON.parse(text);
-    if (json.answer) {
-      return json.answer;  // Or json.answer.text if nested
-    } else {
-      return 'Error: Unexpected JSON structure - ' + JSON.stringify(json);
-    }
-  } catch (e) {
-    return 'Fetch Error: ' + e.message;
-  }
-}
-
-
-
-
 
 
 // Add-on menu
 function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
-    .addItem('Open AI Copilot Sidebar', 'showCopilotSidebar')
+    .addItem('Initialize User', 'initializeUser')  // New menu item to store email
+    .addItem('Open Dividend Data Sidebar', 'showSidebar')
     .addToUi();
 }
 
-// Show sidebar with embedded Finchat
-function showCopilotSidebar() {
-  const html = HtmlService.createHtmlOutput(`
-    <html>
-      <head>
-        <style>
-          #finchat {
-            border: none;
-            width: 100%;
-            height: 100vh;
-            border-radius: 15px;
-            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
-          }
-        </style>
-      </head>
-      <body>
-        <iframe id="finchat" name="finchat" src="about:blank"></iframe>
-        <script>
-          const embedKey = '81400b13912e4d75b3cff58028e4f8cc';  // From app.R
-          const iframe = document.getElementById('finchat');
-          iframe.src = 'https://enterprise.finchat.io/' + embedKey;
-
-          // Generate token (adapt from app.R; call a server-side function if needed)
-          const token = google.script.run.withSuccessHandler(function(token) {
-            function handleIframeReady(event) {
-              if (event.data !== 'READY') return;
-              const targetWindow = iframe.contentWindow;
-              if (!targetWindow) return;
-              targetWindow.postMessage({ token }, 'https://enterprise.finchat.io/');
-            }
-            window.addEventListener('message', handleIframeReady);
-          }).getFinchatToken('support@dividenddata.com', 'paid');  // Replace with actual uid/tier
-        </script>
-      </body>
-    </html>
-  `).setTitle('Dividend Data AI Copilot').setWidth(800);
-
-  SpreadsheetApp.getUi().showSidebar(html);
+// New function to store user email in UserProperties (runs with permissions)
+function initializeUser() {
+  const ui = SpreadsheetApp.getUi();
+  const email = Session.getActiveUser().getEmail();
+  if (!email) {
+    ui.alert('Error', 'Unable to retrieve your email. Ensure permissions are granted.', ui.ButtonSet.OK);
+    return;
+  }
+  
+  const properties = PropertiesService.getUserProperties();
+  properties.setProperty('USER_EMAIL', email);
+  
+  ui.alert('Success', 'User initialized! Your email (' + email + ') is now stored for AI features.', ui.ButtonSet.OK);
 }
 
-/**
-Dummy sidebar function (can be expanded later)
+
+// Dummy sidebar function (can be expanded later)
 function showSidebar() {
   const html = HtmlService.createHtmlOutput('<p>Welcome to Dividend Data Add-on! Custom functions are now active.</p>')
     .setTitle('Dividend Data')
@@ -1902,6 +1765,3 @@ function showSidebar() {
 function onHomepage() {
   showSidebar();
 }
-
-*/
-
