@@ -87,9 +87,10 @@ _Available metrics:_
 **Output**: Flat historical dividend table for all symbols.
 
 ## 3) DIVIDENDDATA_STATEMENT
-###Description
+### Description
 Retrieves full financial statements for a stock. This function is useful for in-depth financial analysis, providing complete income statements, balance sheets, or cash flow statements over time. It supports filtering by period and year.
-Parameters
+
+### Parameters
 
 **symbol**: Stock ticker symbol (e.g., `"MSFT"`). Required.
 
@@ -112,44 +113,280 @@ Parameters
 **Output**: TTM cash flow statement without headers.
 
 ## 4) DIVIDENDDATA_METRICS
-Description
+### Description
 Retrieves a specific metric from financial statements. This function allows targeted extraction of key financial figures like revenue or free cash flow, either as the latest value or historical table.
-Parameters
 
-symbol: Stock ticker symbol (e.g., MSFT). Required.
-metric: The specific financial metric (e.g., revenue, freeCashFlow). Available: revenue, netIncome, freeCashFlow, eps, totalAssets, totalDebt, etc. (see code for full list by statement type).
-showHeaders: If true, returns historical table; else, latest value (default: false).
-period: Period: annual, quarter, ttm (default: '').
-year: Specific year filter (default: '').
+### Parameters
 
-Examples
+**symbo**l: Stock ticker symbol (e.g., MSFT). Required.
+**metric**: The specific financial metric (e.g., `"revenue"`, `"freeCashFlow"`). 
 
-Input: =DIVIDENDDATA_METRICS("MSFT", "revenue")
-Output: Latest revenue value.
-Input: =DIVIDENDDATA_METRICS("AAPL", "freeCashFlow", TRUE, "quarter", "2024")
-Output: Quarterly free cash flow history table for 2024.
+_All available metrics_: 
+* `"Revenue"` (Revenue)
+* `"CostOfRevenue"` (Cost of Revenue)
+* `"GrossProfit"` (Gross Profit)
+* `"ResearchAndDevelopmentExpenses"` (Research and Development Expenses)
+* `"GeneralAndAdministrativeExpenses"` (General and Administrative Expenses)
+* `"SellingAndMarketingExpenses"` (Selling and Marketing Expenses)
+* `"SellingGeneralAndAdministrativeExpenses"` (Selling General and Administrative Expenses)
+* `"OtherExpenses"` (Other Expenses)
+* `"OperatingExpenses"` (Operating Expenses)
+* `"CostAndExpenses"` (Cost and Expenses)
+* `"NetInterestIncome"` (Net Interest Income)
+* `"InterestIncome"` (Interest Income)
+* `"InterestExpense"` (Interest Expense)
+* `"DepreciationAndAmortization"` (Depreciation and Amortization)
+* `"Ebitda"` (Ebitda)
+* `"Ebit"` (Ebit)
+* `"NonOperatingIncomeExcludingInterest"` (Non Operating Income Excluding Interest)
+* `"OperatingIncome"` (Operating Income)
+* `"TotalOtherIncomeExpensesNet"` (Total Other Income Expenses Net)
+* `"IncomeBeforeTax"` (Income Before Tax)
+* `"IncomeTaxExpense"` (Income Tax Expense)
+* `"NetIncomeFromContinuingOperations"` (Net Income From Continuing Operations)
+* `"NetIncomeFromDiscontinuedOperations"` (Net Income From Discontinued Operations)
+* `"OtherAdjustmentsToNetIncome"` (Other Adjustments To Net Income)
+* `"NetIncome"` (Net Income)
+* `"NetIncomeDeductions"` (Net Income Deductions)
+* `"BottomLineNetIncome"` (Bottom Line Net Income)
+* `"Eps"` (Eps)
+* `"EpsDiluted"` (Eps Diluted)
+* `"WeightedAverageShsOut"` (Weighted Average Shs Out)
+* `"WeightedAverageShsOutDil"` (Weighted Average Shs Out Dil)
+* `"CashAndCashEquivalents"` (Cash and Cash Equivalents)
+* `"ShortTermInvestments"` (Short Term Investments)
+* `"CashAndShortTermInvestments"` (Cash and Short Term Investments)
+* `"NetReceivables"` (Net Receivables)
+* `"AccountsReceivables"` (Accounts Receivables)
+* `"OtherReceivables"` (Other Receivables)
+* `"Inventory"` (Inventory)
+* `"Prepaids"` (Prepaids)
+* `"OtherCurrentAssets"` (Other Current Assets)
+* `"TotalCurrentAssets"` (Total Current Assets)
+* `"PropertyPlantEquipmentNet"` (Property Plant Equipment Net)
+* `"Goodwill"` (Goodwill)
+* `"IntangibleAssets"` (Intangible Assets)
+* `"GoodwillAndIntangibleAssets"` (Goodwill and Intangible Assets)
+* `"LongTermInvestments"` (Long Term Investments)
+* `"TaxAssets"` (Tax Assets)
+* `"OtherNonCurrentAssets"` (Other Non Current Assets)
+* `"TotalNonCurrentAssets"` (Total Non Current Assets)
+* `"OtherAssets"` (Other Assets)
+* `"TotalAssets"` (Total Assets)
+* `"TotalPayables"` (Total Payables)
+* `"AccountPayables"` (Account Payables)
+* `"OtherPayables"` (Other Payables)
+* `"AccruedExpenses"` (Accrued Expenses)
+* `"ShortTermDebt"` (Short Term Debt)
+* `"CapitalLeaseObligationsCurrent"` (Capital Lease Obligations Current)
+* `"TaxPayables"` (Tax Payables)
+* `"DeferredRevenue"` (Deferred Revenue)
+* `"OtherCurrentLiabilities"` (Other Current Liabilities)
+* `"TotalCurrentLiabilities"` (Total Current Liabilities)
+* `"LongTermDebt"` (Long Term Debt)
+* `"CapitalLeaseObligationsNonCurrent"` (Capital Lease Obligations Non Current)
+* `"DeferredRevenueNonCurrent"` (Deferred Revenue Non Current)
+* `"DeferredTaxLiabilitiesNonCurrent"` (Deferred Tax Liabilities Non Current)
+* `"OtherNonCurrentLiabilities"` (Other Non Current Liabilities)
+* `"TotalNonCurrentLiabilities"` (Total Non Current Liabilities)
+* `"OtherLiabilities"` (Other Liabilities)
+* `"CapitalLeaseObligations"` (Capital Lease Obligations)
+* `"TotalLiabilities"` (Total Liabilities)
+* `"TreasuryStock"` (Treasury Stock)
+* `"PreferredStock"` (Preferred Stock)
+* `"CommonStock"` (Common Stock)
+* `"RetainedEarnings"` (Retained Earnings)
+* `"AdditionalPaidInCapital"` (Additional Paid In Capital)
+* `"AccumulatedOtherComprehensiveIncomeLoss"` (Accumulated Other Comprehensive Income Loss)
+* `"OtherTotalStockholdersEquity"` (Other Total Stockholders Equity)
+* `"TotalStockholdersEquity"` (Total Stockholders Equity)
+* `"TotalEquity"` (Total Equity)
+* `"MinorityInterest"` (Minority Interest)
+* `"TotalLiabilitiesAndTotalEquity"` (Total Liabilities and Total Equity)
+* `"TotalInvestments"` (Total Investments)
+* `"TotalDebt"` (Total Debt)
+* `"NetDebt"` (Net Debt)
+* `"NetIncome"` (Net Income)
+* `"DepreciationAndAmortization"` (Depreciation and Amortization)
+* `"DeferredIncomeTax"` (Deferred Income Tax)
+* `"StockBasedCompensation"` (Stock Based Compensation)
+* `"ChangeInWorkingCapital"` (Change In Working Capital)
+* `"AccountsReceivables"` (Accounts Receivables)
+* `"Inventory"` (Inventory)
+* `"AccountsPayables"` (Accounts Payables)
+* `"OtherWorkingCapital"` (Other Working Capital)
+* `"OtherNonCashItems"` (Other Non Cash Items)
+* `"NetCashProvidedByOperatingActivities"` (Net Cash Provided By Operating Activities)
+* `"InvestmentsInPropertyPlantAndEquipment"` (Investments In Property Plant and Equipment)
+* `"AcquisitionsNet"` (Acquisitions Net)
+* `"PurchasesOfInvestments"` (Purchases of Investments)
+* `"SalesMaturitiesOfInvestments"` (Sales Maturities of Investments)
+* `"OtherInvestingActivities"` (Other Investing Activities)
+* `"NetCashProvidedByInvestingActivities"` (Net Cash Provided By Investing Activities)
+* `"NetDebtIssuance"` (Net Debt Issuance)
+* `"LongTermNetDebtIssuance"` (Long Term Net Debt Issuance)
+* `"ShortTermNetDebtIssuance"` (Short Term Net Debt Issuance)
+* `"NetStockIssuance"` (Net Stock Issuance)
+* `"NetCommonStockIssuance"` (Net Common Stock Issuance)
+* `"CommonStockIssuance"` (Common Stock Issuance)
+* `"CommonStockRepurchased"` (Common Stock Repurchased)
+* `"NetPreferredStockIssuance"` (Net Preferred Stock Issuance)
+* `"NetDividendsPaid"` (Net Dividends Paid)
+* `"CommonDividendsPaid"` (Common Dividends Paid)
+* `"PreferredDividendsPaid"` (Preferred Dividends Paid)
+* `"OtherFinancingActivities"` (Other Financing Activities)
+* `"NetCashProvidedByFinancingActivities"` (Net Cash Provided By Financing Activities)
+* `"EffectOfForexChangesOnCash"` (Effect of Forex Changes On Cash)
+* `"NetChangeInCash"` (Net Change In Cash)
+* `"CashAtEndOfPeriod"` (Cash At End of Period)
+* `"CashAtBeginningOfPeriod"` (Cash At Beginning of Period)
+* `"OperatingCashFlow"` (Operating Cash Flow)
+* `"CapitalExpenditure"` (Capital Expenditure)
+* `"FreeCashFlow"` (Free Cash Flow)
+* `"IncomeTaxesPaid"` (Income Taxes Paid)
+* `"InterestPaid"` (Interest Paid)
 
-## DIVIDENDDATA_RATIOS
-Description
+**showHeaders**: If `true`, returns historical table; else, latest value (default: `false`).
+**period**: Period: `"annual"`, `"quarter"`, `"ttm"` (default: `''`).
+**year**: Specific year filter (default: `''`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_METRICS("MSFT", "revenue")`
+
+**Output**: Latest revenue value for Microsoft stock. Annual by default.
+
+**Input**: `=DIVIDENDDATA_METRICS("AAPL", "freeCashFlow", TRUE, "quarter", "2024")`
+
+**Output**: Quarterly free cash flow history table for 2024 of Apple stock.
+
+## 5) DIVIDENDDATA_RATIOS
+### Description
 Retrieves a specific financial ratio or key metric for a stock. Useful for valuation, liquidity, and efficiency analysis, either latest value or historical.
-Parameters
+
+### Parameters
 
 **symbol**: Stock ticker symbol (e.g., MSFT). Required.
 
-**metric**: The ratio or key metric. (e.g., currentRatio, peRatio). Available: currentRatio, peRatio, payoutRatio, roic, debtToEquity, etc. (see code for full list).
+**metric**: The ratio or key metric. (e.g., currentRatio, peRatio). Available: currentRatio, peRatio, payoutRatio, roic, debtToEquity, etc.
+
+_All available metrics:_
+* `"RevenuePerShare"` (Revenue Per Share)
+* `"NetIncomePerShare"` (Net Income Per Share)
+* `"OperatingCashFlowPerShare"` (Operating Cash Flow Per Share)
+* `"FreeCashFlowPerShare"` (Free Cash Flow Per Share)
+* `"CashPerShare"` (Cash Per Share)
+* `"BookValuePerShare"` (Book Value Per Share)
+* `"TangibleBookValuePerShare"` (Tangible Book Value Per Share)
+* `"ShareholdersEquityPerShare"` (Shareholders Equity Per Share)
+* `"InterestDebtPerShare"` (Interest Debt Per Share)
+* `"MarketCap"` (Market Cap)
+* `"EnterpriseValue"` (Enterprise Value)
+* `"PeRatio"` (Pe Ratio)
+* `"PriceToSalesRatio"` (Price To Sales Ratio)
+* `"Pocfratio"` (Pocfratio)
+* `"PfcfRatio"` (Pfcf Ratio)
+* `"PbRatio"` (Pb Ratio)
+* `"PtbRatio"` (Ptb Ratio)
+* `"EvToSales"` (Ev To Sales)
+* `"EnterpriseValueOverEBITDA"` (Enterprise Value Over EBITDA)
+* `"EvToOperatingCashFlow"` (Ev To Operating Cash Flow)
+* `"EvToFreeCashFlow"` (Ev To Free Cash Flow)
+* `"EarningsYield"` (Earnings Yield)
+* `"FreeCashFlowYield"` (Free Cash Flow Yield)
+* `"DebtToEquity"` (Debt To Equity)
+* `"DebtToAssets"` (Debt To Assets)
+* `"NetDebtToEBITDA"` (Net Debt To EBITDA)
+* `"CurrentRatio"` (Current Ratio)
+* `"InterestCoverage"` (Interest Coverage)
+* `"IncomeQuality"` (Income Quality)
+* `"DividendYield"` (Dividend Yield)
+* `"PayoutRatio"` (Payout Ratio)
+* `"SalesGeneralAndAdministrativeToRevenue"` (Sales General And Administrative To Revenue)
+* `"ResearchAndDevelopmentToRevenue"` (Research And Development To Revenue)
+* `"IntangiblesToTotalAssets"` (Intangibles To Total Assets)
+* `"CapexToOperatingCashFlow"` (Capex To Operating Cash Flow)
+* `"CapexToRevenue"` (Capex To Revenue)
+* `"CapexToDepreciation"` (Capex To Depreciation)
+* `"StockBasedCompensationToRevenue"` (Stock Based Compensation To Revenue)
+* `"GrahamNumber"` (Graham Number)
+* `"Roic"` (Roic)
+* `"ReturnOnTangibleAssets"` (Return On Tangible Assets)
+* `"GrahamNetNet"` (Graham Net Net)
+* `"WorkingCapital"` (Working Capital)
+* `"TangibleAssetValue"` (Tangible Asset Value)
+* `"NetCurrentAssetValue"` (Net Current Asset Value)
+* `"InvestedCapital"` (Invested Capital)
+* `"AverageReceivables"` (Average Receivables)
+* `"AveragePayables"` (Average Payables)
+* `"AverageInventory"` (Average Inventory)
+* `"DaysSalesOutstanding"` (Days Sales Outstanding)
+* `"DaysPayablesOutstanding"` (Days Payables Outstanding)
+* `"DaysOfInventoryOnHand"` (Days Of Inventory On Hand)
+* `"ReceivablesTurnover"` (Receivables Turnover)
+* `"PayablesTurnover"` (Payables Turnover)
+* `"InventoryTurnover"` (Inventory Turnover)
+* `"Roe"` (Roe)
+* `"CapexPerShare"` (Capex Per Share)
+* `"CurrentRatio"` (Current Ratio)
+* `"QuickRatio"` (Quick Ratio)
+* `"CashRatio"` (Cash Ratio)
+* `"DaysOfSalesOutstanding"` (Days Of Sales Outstanding)
+* `"DaysOfInventoryOutstanding"` (Days Of Inventory Outstanding)
+* `"OperatingCycle"` (Operating Cycle)
+* `"DaysOfPayablesOutstanding"` (Days Of Payables Outstanding)
+* `"CashConversionCycle"` (Cash Conversion Cycle)
+* `"GrossProfitMargin"` (Gross Profit Margin)
+* `"OperatingProfitMargin"` (Operating Profit Margin)
+* `"PretaxProfitMargin"` (Pretax Profit Margin)
+* `"NetProfitMargin"` (Net Profit Margin)
+* `"EffectiveTaxRate"` (Effective Tax Rate)
+* `"ReturnOnAssets"` (Return On Assets)
+* `"ReturnOnEquity"` (Return On Equity)
+* `"ReturnOnCapitalEmployed"` (Return On Capital Employed)
+* `"NetIncomePerEBT"` (Net Income Per EBT)
+* `"EbtPerEbit"` (Ebt Per Ebit)
+* `"EbitPerRevenue"` (Ebit Per Revenue)
+* `"DebtRatio"` (Debt Ratio)
+* `"DebtEquityRatio"` (Debt Equity Ratio)
+* `"LongTermDebtToCapitalization"` (Long Term Debt To Capitalization)
+* `"TotalDebtToCapitalization"` (Total Debt To Capitalization)
+* `"InterestCoverage"` (Interest Coverage)
+* `"CashFlowCoverageRatios"` (Cash Flow Coverage Ratios)
+* `"ShortTermCoverageRatios"` (Short Term Coverage Ratios)
+* `"CapitalExpenditureCoverageRatio"` (Capital Expenditure Coverage Ratio)
+* `"DividendPaidAndCapexCoverageRatio"` (Dividend Paid And Capex Coverage Ratio)
+* `"DividendPayoutRatio"` (Dividend Payout Ratio)
+* `"PriceBookValueRatio"` (Price Book Value Ratio)
+* `"PriceToBookRatio"` (Price To Book Ratio)
+* `"PriceToSalesRatio"` (Price To Sales Ratio)
+* `"PriceEarningsRatio"` (Price Earnings Ratio)
+* `"PriceToFreeCashFlowsRatio"` (Price To Free Cash Flows Ratio)
+* `"PriceToOperatingCashFlowsRatio"` (Price To Operating Cash Flows Ratio)
+* `"PriceCashFlowRatio"` (Price Cash Flow Ratio)
+* `"PriceEarningsToGrowthRatio"` (Price Earnings To Growth Ratio)
+* `"PriceSalesRatio"` (Price Sales Ratio)
+* `"DividendYield"` (Dividend Yield)
+* `"EnterpriseValueMultiple"` (Enterprise Value Multiple)
+* `"PriceFairValue"` (Price Fair Value)
 
 **showHeaders**: If `true`, returns historical table (default: `false`).
-**period**: Period: annual, quarter, ttm (default: `''`).
-**year**: Specific year filter (default: `''`).
 
-Examples
+**period**: Period: `"annual"`, `"quarter"`, `"ttm"` (default: `''`).
 
-Input: =DIVIDENDDATA_RATIOS("MSFT", "peRatio")
-Output: Latest P/E ratio.
-Input: =DIVIDENDDATA_RATIOS("AAPL", "currentRatio", TRUE, "annual")
-Output: Annual current ratio history table.
+**year**: Specific year filter like `2023` (default: `''`).
 
-## DIVIDENDDATA_GROWTH
+### Examples
+
+**Input**: `=DIVIDENDDATA_RATIOS("MSFT", "peRatio")`
+
+**Output**: Latest P/E ratio for Microsoft.
+
+**Input**: `=DIVIDENDDATA_RATIOS("AAPL", "currentRatio", TRUE, "annual")`
+
+**Output**: Annual current ratio history table for Apple.
+
+## 6) DIVIDENDDATA_GROWTH
 Description
 Retrieves a specific growth metric for financial figures. Useful for trend analysis, like revenue or EPS growth rates over time.
 Parameters
