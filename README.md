@@ -1,10 +1,10 @@
 # Dividend Data Spreadsheet Add-on Documentation
-This add-on provides custom functions for fetching dividend, financial, and stock data from Dividend Data. It includes tools for dividends, statements, metrics, ratios, growth, quotes, profiles, funds, segments, KPIs, commodities, and batch quotes.
+This add-on provides custom functions for fetching stock data from Dividend Data. It includes tools for dividends, statements, metrics, ratios, growth, quotes, profiles, funds, segments, KPIs, commodities, and batch quotes/dividends.
 To use, install the add-on in Google Sheets and use the functions in cells.
 
 _Below, I'll explain each of the functions available:_
 
-## DIVIDENDDATA
+## 1) DIVIDENDDATA
 ### Description
 Retrieves various dividend-related data for a single stock symbol. This function is useful for analyzing a company's dividend payments, yields, growth trends, and sustainability through payout ratios. It can return single values for quick metrics or tables for historical data.
 
@@ -51,41 +51,67 @@ _Available metrics:_
 _The data above is formatted. In reality, it will return the raw numbers. You can choose how to format within the returned cells._
 
 
-## DIVIDENDDATA_BATCH
+## 2) DIVIDENDDATA_BATCH
 ### Description
 Retrieves batch dividend data for multiple stock symbols. This function is efficient for fetching dividend information across several tickers at once, such as latest payouts or historical tables. It supports both latest values and full history.
-Parameters
 
-symbols: Comma-separated stock ticker symbols (e.g., MSFT,KMB,O). Required.
-metric: Comma-separated metrics or "all" or "history" (default: "fwd_payout"). Available: adjdividend, dividend, recorddate, paymentdate, declarationdate, yield, frequency, fwd_payout.
-showHeaders: Boolean to include header row and symbol column (defaults to true for "all" or "history").
+### Parameters
 
-Examples
+**symbols**: Comma-separated stock ticker symbols (e.g., `"MSFT,KMB,O"`). Required.
 
-Input: `=DIVIDENDDATA_BATCH("MSFT,AAPL", "fwd_payout,yield", TRUE)`
-Output: Table with symbols, forward payouts, and yields.
-Input: `=DIVIDENDDATA_BATCH("MSFT,KMB", "history")`
-Output: Flat historical dividend table for all symbols.
+**metric**: Select a metric (default: `"fwd_payout"`). Or select multiple with comma-separated metrics _(Aside from `"all"` and `"history"`)_. 
 
-## DIVIDENDDATA_STATEMENT
-Description
+- `"all"` Get all the latest dividend metrics for the provided tickers.
+- `"history"` Get the dividend history of all provided tickers.
+
+_Available metrics:_ 
+- `"fwd_payout"`
+- `"adjdividend"`
+- `"dividend"`
+- `"recorddate"`
+- `"declarationdate"`
+- `"paymentdate"`
+- `"yield"`
+- `"frequency"`
+
+**showHeaders**: Boolean to include header row and symbol column (defaults to true for `"all"` or `"history"`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_BATCH("MSFT,AAPL", "fwd_payout,yield", TRUE)`
+
+**Output**: Table with symbols, forward payouts, and yields.
+
+**Input**: `=DIVIDENDDATA_BATCH("MSFT,KMB", "history")`
+
+**Output**: Flat historical dividend table for all symbols.
+
+## 3) DIVIDENDDATA_STATEMENT
+###Description
 Retrieves full financial statements for a stock. This function is useful for in-depth financial analysis, providing complete income statements, balance sheets, or cash flow statements over time. It supports filtering by period and year.
 Parameters
 
-symbol: Stock ticker symbol (e.g., MSFT). Required.
-metric: The statement type: income, balance, or cash_flow. Required.
-showHeaders: Boolean to include header row (default: false).
-period: Period filter: FY, Q1, Q2, Q3, Q4, annual, quarter, ttm (default: '').
-year: Specific year to filter (e.g., 2025, default: '').
+**symbol**: Stock ticker symbol (e.g., `"MSFT"`). Required.
 
-Examples
+**metric**: The statement type: `"income"`, `"balance"`, or `"cash_flow"`. Required.
 
-Input: =DIVIDENDDATA_STATEMENT("MSFT", "income", TRUE, "annual", "2024")
-Output: Income statement table for 2024 with headers.
-Input: =DIVIDENDDATA_STATEMENT("AAPL", "cash_flow", FALSE, "ttm")
-Output: TTM cash flow statement without headers.
+**showHeaders**: Boolean to include header row (default: `false`).
 
-## DIVIDENDDATA_METRICS
+**period**: Period filter: `"FY"`, `"Q1"`, `"Q2"`, `"Q3"`, `"Q4"`, `"annual"`, `"quarter"`, `"ttm" (default: `''`).
+
+**year**: Specific year to filter (e.g., `2025`, default: `''`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_STATEMENT("MSFT", "income", TRUE, "annual", "2024")`
+
+**Output**: Income statement table for 2024 with headers.
+
+**Input**: `=DIVIDENDDATA_STATEMENT("AAPL", "cash_flow", FALSE, "ttm")`
+
+**Output**: TTM cash flow statement without headers.
+
+## 4) DIVIDENDDATA_METRICS
 Description
 Retrieves a specific metric from financial statements. This function allows targeted extraction of key financial figures like revenue or free cash flow, either as the latest value or historical table.
 Parameters
@@ -108,11 +134,13 @@ Description
 Retrieves a specific financial ratio or key metric for a stock. Useful for valuation, liquidity, and efficiency analysis, either latest value or historical.
 Parameters
 
-symbol: Stock ticker symbol (e.g., MSFT). Required.
-metric: The ratio or key metric (e.g., currentRatio, peRatio). Available: currentRatio, peRatio, payoutRatio, roic, debtToEquity, etc. (see code for full list).
-showHeaders: If true, returns historical table (default: false).
-period: Period: annual, quarter, ttm (default: '').
-year: Specific year filter (default: '').
+**symbol**: Stock ticker symbol (e.g., MSFT). Required.
+
+**metric**: The ratio or key metric. (e.g., currentRatio, peRatio). Available: currentRatio, peRatio, payoutRatio, roic, debtToEquity, etc. (see code for full list).
+
+**showHeaders**: If `true`, returns historical table (default: `false`).
+**period**: Period: annual, quarter, ttm (default: `''`).
+**year**: Specific year filter (default: `''`).
 
 Examples
 
@@ -156,6 +184,24 @@ Input: =DIVIDENDDATA_QUOTE("AAPL", "price")
 Output: Current price.
 Input: =DIVIDENDDATA_QUOTE("MSFT", "history", "2024-01-01", "2024-12-31", TRUE)
 Output: Historical price table with headers.
+
+
+## DIVIDENDDATA_QUOTE_BATCH
+Description
+Retrieves batch quote data for multiple stocks. Efficient for monitoring prices or volumes across tickers.
+Parameters
+
+symbols: Comma-separated tickers (e.g., AAPL,MSFT). Required.
+metrics: Comma-separated metrics or "all": price, change, volume (default: "all").
+showHeaders: Include headers and symbol column (defaults based on metrics).
+
+Examples
+
+Input: =DIVIDENDDATA_QUOTE_BATCH("AAPL,MSFT", "price,change")
+Output: Table with prices and changes.
+Input: =DIVIDENDDATA_QUOTE_BATCH("MSFT,KMB", "all", TRUE)
+Output: Full quotes table with headers.
+
 
 ## DIVIDENDDATA_PROFILE
 Description
@@ -242,18 +288,3 @@ Output: Current oil price.
 Input: =DIVIDENDDATA_COMMODITIES(, "list", , , TRUE)
 Output: Commodities list table with headers.
 
-## DIVIDENDDATA_QUOTE_BATCH
-Description
-Retrieves batch quote data for multiple stocks. Efficient for monitoring prices or volumes across tickers.
-Parameters
-
-symbols: Comma-separated tickers (e.g., AAPL,MSFT). Required.
-metrics: Comma-separated metrics or "all": price, change, volume (default: "all").
-showHeaders: Include headers and symbol column (defaults based on metrics).
-
-Examples
-
-Input: =DIVIDENDDATA_QUOTE_BATCH("AAPL,MSFT", "price,change")
-Output: Table with prices and changes.
-Input: =DIVIDENDDATA_QUOTE_BATCH("MSFT,KMB", "all", TRUE)
-Output: Full quotes table with headers.
