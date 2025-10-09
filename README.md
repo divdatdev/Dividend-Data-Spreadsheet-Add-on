@@ -48,7 +48,7 @@ _Available metrics:_
 | 3/10/2025  | 5/14/2025  | 6/11/2025  | $0.83  | $0.83  | 0.72%  | Quarterly |
 | 12/2/2024 | 2/19/2025  | 3/12/2025  | $0.83  | $0.83  | 0.76%  | Quarterly  |
 
-_The data above is formatted. In reality, it will return the raw numbers. You can choose how to format within the returned cells._
+_(The data above is formatted. In reality, it will return the raw numbers. You can choose how to format within the returned cells.)_
 
 
 ## 2) DIVIDENDDATA_BATCH
@@ -118,7 +118,8 @@ Retrieves a specific metric from financial statements. This function allows targ
 
 ### Parameters
 
-**symbo**l: Stock ticker symbol (e.g., MSFT). Required.
+**symbol**: Stock ticker symbol (e.g., `"MSFT"`). Required.
+
 **metric**: The specific financial metric (e.g., `"revenue"`, `"freeCashFlow"`). 
 
 _All available metrics_: 
@@ -266,9 +267,9 @@ Retrieves a specific financial ratio or key metric for a stock. Useful for valua
 
 ### Parameters
 
-**symbol**: Stock ticker symbol (e.g., MSFT). Required.
+**symbol**: Stock ticker symbol (e.g., `"MSFT"`). Required.
 
-**metric**: The ratio or key metric. (e.g., currentRatio, peRatio). Available: currentRatio, peRatio, payoutRatio, roic, debtToEquity, etc.
+**metric**: The ratio or key metric. (e.g., `"currentRatio"`, `"peRatio"`).
 
 _All available metrics:_
 * `"RevenuePerShare"` (Revenue Per Share)
@@ -387,141 +388,296 @@ _All available metrics:_
 **Output**: Annual current ratio history table for Apple.
 
 ## 6) DIVIDENDDATA_GROWTH
-Description
+### Description
 Retrieves a specific growth metric for financial figures. Useful for trend analysis, like revenue or EPS growth rates over time.
-Parameters
 
-symbol: Stock ticker symbol (e.g., MSFT). Required.
-metric: The growth metric (e.g., revenueGrowth, epsGrowth). Available: revenueGrowth, epsGrowth, dividendsPerShareGrowth, etc. (see code for full list).
-showHeaders: If true, returns historical table (default: false).
-period: Period: annual, quarter, q1, q2, q3, q4, fy (default: '').
-year: Specific year filter (default: '').
+### Parameters
 
-Examples
+**symbol**: Stock ticker symbol (e.g., `"MSFT"`). Required.
 
-Input: =DIVIDENDDATA_GROWTH("MSFT", "revenueGrowth")
-Output: Latest revenue growth rate.
-Input: =DIVIDENDDATA_GROWTH("AAPL", "epsGrowth", TRUE, "quarter")
-Output: Quarterly EPS growth history table.
+**metric**: The growth metric (e.g., `"revenueGrowth"`, `"epsGrowth"`). 
 
-## DIVIDENDDATA_QUOTE
-Description
+_All available metrics:_
+* `"RevenueGrowth"` (Revenue Growth)
+* `"GrossProfitGrowth"` (Gross Profit Growth)
+* `"Ebitgrowth"` (Ebitgrowth)
+* `"OperatingIncomeGrowth"` (Operating Income Growth)
+* `"NetIncomeGrowth"` (Net Income Growth)
+* `"Epsgrowth"` (Epsgrowth)
+* `"EpsdilutedGrowth"` (Epsdiluted Growth)
+* `"WeightedAverageSharesGrowth"` (Weighted Average Shares Growth)
+* `"WeightedAverageSharesDilutedGrowth"` (Weighted Average Shares Diluted Growth)
+* `"DividendsPerShareGrowth"` (Dividends Per Share Growth)
+* `"OperatingCashFlowGrowth"` (Operating Cash Flow Growth)
+* `"ReceivablesGrowth"` (Receivables Growth)
+* `"InventoryGrowth"` (Inventory Growth)
+* `"AssetGrowth"` (Asset Growth)
+* `"BookValuePerShareGrowth"` (Book Value Per Share Growth)
+* `"DebtGrowth"` (Debt Growth)
+* `"RdexpenseGrowth"` (Rdexpense Growth)
+* `"SgaexpensesGrowth"` (Sgaexpenses Growth)
+* `"FreeCashFlowGrowth"` (Free Cash Flow Growth)
+* `"TenYRevenueGrowthPerShare"` (Ten Y Revenue Growth Per Share)
+* `"FiveYRevenueGrowthPerShare"` (Five Y Revenue Growth Per Share)
+* `"ThreeYRevenueGrowthPerShare"` (Three Y Revenue Growth Per Share)
+* `"TenYOperatingCFGrowthPerShare"` (Ten Y Operating CF Growth Per Share)
+* `"FiveYOperatingCFGrowthPerShare"` (Five Y Operating CF Growth Per Share)
+* `"ThreeYOperatingCFGrowthPerShare"` (Three Y Operating CF Growth Per Share)
+* `"TenYNetIncomeGrowthPerShare"` (Ten Y Net Income Growth Per Share)
+* `"FiveYNetIncomeGrowthPerShare"` (Five Y Net Income Growth Per Share)
+* `"ThreeYNetIncomeGrowthPerShare"` (Three Y Net Income Growth Per Share)
+* `"TenYShareholdersEquityGrowthPerShare"` (Ten Y Shareholders Equity Growth Per Share)
+* `"FiveYShareholdersEquityGrowthPerShare"` (Five Y Shareholders Equity Growth Per Share)
+* `"ThreeYShareholdersEquityGrowthPerShare"` (Three Y Shareholders Equity Growth Per Share)
+* `"TenYDividendPerShareGrowthPerShare"` (Ten Y Dividend Per Share Growth Per Share)
+* `"FiveYDividendPerShareGrowthPerShare"` (Five Y Dividend Per Share Growth Per Share)
+* `"ThreeYDividendPerShareGrowthPerShare"` (Three Y Dividend Per Share Growth Per Share)
+* `"EbitdaGrowth"` (Ebitda Growth)
+* `"GrowthCapitalExpenditure"` (Growth Capital Expenditure)
+* `"TenYBottomLineNetIncomeGrowthPerShare"` (Ten Y Bottom Line Net Income Growth Per Share)
+* `"FiveYBottomLineNetIncomeGrowthPerShare"` (Five Y Bottom Line Net Income Growth Per Share)
+* `"ThreeYBottomLineNetIncomeGrowthPerShare"` (Three Y Bottom Line Net Income Growth Per Share)
+
+**showHeaders**: If `true`, returns historical table (default: `false`).
+
+**period**: Period: `"annual"`, `"quarter"`, `"q1"`, `"q2"`, `"q3"`, `"q4"`, `"fy"` (default: `''`).
+
+**year**: Specific year filter like `2023` (default: `''`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_GROWTH("MSFT", "revenueGrowth")`
+
+**Output**: Latest revenue growth rate.
+
+**Input**: `=DIVIDENDDATA_GROWTH("AAPL", "epsGrowth", TRUE, "quarter")`
+
+**Output**: Quarterly EPS growth history table.
+
+## 7) DIVIDENDDATA_QUOTE
+### Description
 Retrieves stock quote data, including current price, changes, or historical prices. Useful for real-time monitoring or historical analysis of stock performance.
-Parameters
 
-symbol: Stock ticker symbol (e.g., AAPL). Required.
-metric: The quote metric: price, change, volume, full, history (default: "price").
-fromDate: Start date for history (YYYY-MM-DD, for history only).
-toDate: End date for history (YYYY-MM-DD, for history only).
-showHeaders: Include headers for full or history (default: true).
+### Parameters
 
-Examples
+**symbol**: Stock ticker symbol (e.g., `"AAPL"`). Required.
 
-Input: =DIVIDENDDATA_QUOTE("AAPL", "price")
-Output: Current price.
-Input: =DIVIDENDDATA_QUOTE("MSFT", "history", "2024-01-01", "2024-12-31", TRUE)
-Output: Historical price table with headers.
+**metric**: The quote metrics: `"price"`, `"change"`, `"volume"`, `"full"`, `"history"` (default: `"price"`).
+
+**fromDate**: Start date for history (`"YYYY-MM-DD"`, for history only).
+
+**toDate**: End date for history (`"YYYY-MM-DD"`, for history only).
+
+**showHeaders**: Include headers for `"full"` or `"history"` (default: `true`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_QUOTE("AAPL", "price")`
+
+**Output**: Current price.
+
+**Input**: `=DIVIDENDDATA_QUOTE("MSFT", "history", "2024-01-01", "2024-12-31", TRUE)`
+
+**Output**: Historical price table with headers.
 
 
-## DIVIDENDDATA_QUOTE_BATCH
-Description
+## 8) DIVIDENDDATA_QUOTE_BATCH
+### Description
 Retrieves batch quote data for multiple stocks. Efficient for monitoring prices or volumes across tickers.
-Parameters
 
-symbols: Comma-separated tickers (e.g., AAPL,MSFT). Required.
-metrics: Comma-separated metrics or "all": price, change, volume (default: "all").
-showHeaders: Include headers and symbol column (defaults based on metrics).
+### Parameters
 
-Examples
+**symbols**: Comma-separated tickers (e.g., `"AAPL,MSFT"`). Required.
 
-Input: =DIVIDENDDATA_QUOTE_BATCH("AAPL,MSFT", "price,change")
-Output: Table with prices and changes.
-Input: =DIVIDENDDATA_QUOTE_BATCH("MSFT,KMB", "all", TRUE)
-Output: Full quotes table with headers.
+**metrics**: Comma-separated metrics or `"all"`: `"price"`, `"change"`, `"volume"` (default: `"all"`).
+
+**showHeaders**: Include headers and symbol column (defaults based on metrics).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_QUOTE_BATCH("AAPL,MSFT", "price,change")`
+
+**Output**: Table with prices and changes.
+
+**Input**: `=DIVIDENDDATA_QUOTE_BATCH("MSFT,KMB", "all", TRUE)`
+
+**Output**: Full quotes table with headers.
 
 
-## DIVIDENDDATA_PROFILE
-Description
+## 9) DIVIDENDDATA_PROFILE
+### Description
 Retrieves company profile information. Useful for overview details like market cap, sector, or description.
-Parameters
 
-symbol: Stock ticker symbol (e.g., MSFT). Required.
-metric: Specific profile metric or "full". Available: marketcap, beta, lastdividend, companyname, sector, etc. (see code for full list).
-showHeaders: Include headers for "full" (default: false).
+### Parameters
 
-Examples
+**symbol**: Stock ticker symbol (e.g., `"MSFT"`). Required.
 
-Input: =DIVIDENDDATA_PROFILE("MSFT", "marketcap")
-Output: Market capitalization.
-Input: =DIVIDENDDATA_PROFILE("AAPL", "full", TRUE)
-Output: Full profile table with headers.
+**metric**: Specific profile metric or `"full"`.
 
-## DIVIDENDDATA_FUND
-Description
+_All available metrics:_
+* `"symbol"` (Symbol)
+* `"price"` (Price)
+* `"marketcap"` (Market Cap)
+* `"beta"` (Beta)
+* `"lastdividend"` (Last Dividend)
+* `"range"` (Range)
+* `"change"` (Change)
+* `"changepercentage"` (Change Percentage)
+* `"volume"` (Volume)
+* `"averagevolume"` (Average Volume)
+* `"companyname"` (Company Name)
+* `"currency"` (Currency)
+* `"cik"` (Cik)
+* `"isin"` (Isin)
+* `"cusip"` (Cusip)
+* `"exchangefullname"` (Exchange Full Name)
+* `"exchange"` (Exchange)
+* `"industry"` (Industry)
+* `"website"` (Website)
+* `"description"` (Description)
+* `"ceo"` (Ceo)
+* `"sector"` (Sector)
+* `"country"` (Country)
+* `"fulltimeemployees"` (Full Time Employees)
+* `"phone"` (Phone)
+* `"address"` (Address)
+* `"city"` (City)
+* `"state"` (State)
+* `"zip"` (Zip)
+* `"image"` (Image)
+* `"ipodate"` (Ipo Date)
+* `"defaultimage"` (Default Image)
+* `"isetf"` (Is Etf)
+* `"isactivelytrading"` (Is Actively Trading)
+* `"isadr"` (Is Adr)
+* `"isfund"` (Is Fund)
+* `"full"` (Full)
+
+**showHeaders**: Include headers for `"full"` (default: `false`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_PROFILE("MSFT", "marketcap")`
+
+**Output**: Market capitalization.
+
+**Input**: `=DIVIDENDDATA_PROFILE("AAPL", "full", TRUE)`
+
+**Output**: Full profile table with headers.
+
+## 10) DIVIDENDDATA_FUND
+### Description
 Retrieves data for ETFs or mutual funds. Useful for fund analysis, including holdings, expense ratios, or sector exposures.
-Parameters
 
-symbol: Fund ticker symbol (e.g., SPY). Required.
-metric: Fund metric: holdings, countryweighting, symbol, name, description, isin, assetclass, securitycusip, domicile, website, etfcompany, expenseratio, assetsundermanagement, avgvolume, inceptiondate, nav, navcurrency, holdingscount, updatedat, sectorslist.
-showHeaders: Include headers for tables (default: false).
+### Parameters
 
-Examples
+**symbol**: Fund ticker symbol (e.g., `"SPY"`). Required.
 
-Input: =DIVIDENDDATA_FUND("SPY", "expenseratio")
-Output: Expense ratio.
-Input: =DIVIDENDDATA_FUND("SPY", "holdings", TRUE)
-Output: Holdings table with headers.
+**metric**: Fund metrics like `"holdings"`, `"expenseRatio"`, etc.
 
-## DIVIDENDDATA_SEGMENTS
-Description
+_All available metrics:_
+* `"etfcompany"` (Etf Company)
+* `"expenseratio"` (Expense Ratio)
+* `"assetsundermanagement"` (Assets Under Management)
+* `"holdings"` (Holdings)
+* `"nav"` (Nav)
+* `"navcurrency"` (Nav Currency)
+* `"holdingscount"` (Holdings Count)
+* `"countryweighting"` (Country Weighting)
+* `"sectorslist"` (Sectors List)
+* `"description"` (Description)
+* `"assetclass"` (Asset Class)
+* `"domicile"` (Domicile)
+* `"website"` (Website)
+* `"avgvolume"` (Avg Volume)
+* `"inceptiondate"` (Inception Date)
+* `"updatedat"` (Updated At)
+
+**showHeaders**: Include headers for tables (default: `false`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_FUND("SPY", "expenseratio")`
+
+**Output**: Expense ratio.
+
+**Input**: `=DIVIDENDDATA_FUND("SPY", "holdings", TRUE)`
+
+**Output**: Holdings table with headers.
+
+## 11) DIVIDENDDATA_SEGMENTS
+### Description
 Retrieves revenue segmentation data by product or geography. Useful for understanding revenue sources and diversification.
-Parameters
 
-symbol: Stock ticker symbol (e.g., AAPL). Required.
-metric: Segmentation type: products or geographic. Required.
-period: Period: annual or quarter (default: annual).
-year: Specific year filter (default: '').
-showHeaders: Include header row (default: false).
+### Parameters
 
-Examples
+**symbol**: Stock ticker symbol (e.g., `"AAPL"`). Required.
 
-Input: =DIVIDENDDATA_SEGMENTS("AAPL", "products", "annual", "2024", TRUE)
-Output: Product segments table for 2024 with headers.
-Input: =DIVIDENDDATA_SEGMENTS("MSFT", "geographic", "quarter")
-Output: Quarterly geographic segments table.
+**metric**: Segmentation type: `"products"` or `"geographic"`. Required.
 
-## DIVIDENDDATA_KPIS
-Description
+**period**: Period: `"annual"` or `"quarter"` (default: `"annual"`).
+
+**year**: Specific year filter (default: `''`).
+
+**showHeaders**: Include header row (default: `false`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_SEGMENTS("AAPL", "products", "annual", "2024", TRUE)`
+
+**Output**: Product segments table for 2024 with headers.
+
+**Input**: `=DIVIDENDDATA_SEGMENTS("MSFT", "geographic", "quarter")`
+
+**Output**: Quarterly geographic segments table.
+
+## 12) DIVIDENDDATA_KPIS
+### Description
 Retrieves key performance indicators (KPIs) and segments from Fiscal.ai. Useful for advanced metrics like customer acquisition cost or churn rates.
-Parameters
 
-ticker: Stock ticker symbol (e.g., MSFT). Required.
-period: Period: annual or quarterly (default: annual).
-year: Optional year filter (default: '').
-showheaders: Include header row (default: TRUE).
+### Parameters
 
-Examples
+**ticker**: Stock ticker symbol (e.g., `"MSFT"`). Required.
 
-Input: =DIVIDENDDATA_KPIS("MSFT", "annual", "2024", TRUE)
-Output: Annual KPIs table for 2024 with headers.
-Input: =DIVIDENDDATA_KPIS("AAPL", "quarterly")
-Output: Quarterly KPIs table without headers.
+**period**: `"annual"` or `"quarterly"` (default: `"annual"`).
 
-## DIVIDENDDATA_COMMODITIES
-Description
+**year**: Optional year filter (default: `''`).
+
+**showheaders**: Include header row (default: `TRUE`).
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_KPIS("MSFT", "annual", "2024", TRUE)`
+
+**Output**: Annual KPIs table for 2024 with headers.
+
+**Input**: `=DIVIDENDDATA_KPIS("AAPL", "quarterly")`
+
+Output**: Quarterly KPIs table without headers.
+
+## 13) DIVIDENDDATA_COMMODITIES
+### Description
 Retrieves commodities data, such as prices or history. Useful for tracking commodity markets like oil or gold.
-Parameters
 
-symbol: Commodity symbol (e.g., CLUSD). Required except for "list".
-metric: Metric: list, price, fullquote, history. Required.
-fromDate: Start date for history.
-toDate: End date for history.
-showHeaders: Include headers for tables.
+### Parameters
 
-Examples
+**symbol**: Commodity symbol (e.g., `"CLUSD"`). Required except for `"list"`.
 
-Input: =DIVIDENDDATA_COMMODITIES("CLUSD", "price")
-Output: Current oil price.
-Input: =DIVIDENDDATA_COMMODITIES(, "list", , , TRUE)
-Output: Commodities list table with headers.
+**metric**: Metric: `"list"`, `"price"`, `"fullquote"`, `"history"`. Required.
+
+**fromDate**: Start date for history.
+
+**toDate**: End date for history.
+
+**showHeaders**: Include headers for tables.
+
+### Examples
+
+**Input**: `=DIVIDENDDATA_COMMODITIES("CLUSD", "price")`
+
+**Output**: Current oil price.
+
+**Input**: `=DIVIDENDDATA_COMMODITIES(, "list", , , TRUE)`
+
+**Output**: Commodities list table with headers.
 
