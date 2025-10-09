@@ -663,6 +663,48 @@ Retrieves commodities data, such as prices or history. Useful for tracking commo
 
 **symbol**: Commodity symbol (e.g., `"CLUSD"`). Required except for `"list"`.
 
+_Full list of symbols:_
+* `"ZQUSD"` (30 Day Fed Fund Futures)
+* `"ALIUSD"` (Aluminum Futures)
+* `"ZBUSD"` (30 Year U.S. Treasury Bond Futures)
+* `"ZOUSX"` (Oat Futures)
+* `"ESUSD"` (E-Mini S&P 500)
+* `"ZMUSD"` (Soybean Meal Futures)
+* `"GCUSD"` (Gold Futures)
+* `"ZLUSX"` (Soybean Oil Futures)
+* `"KEUSX"` (Wheat Futures)
+* `"ZFUSD"` (Five-Year US Treasury Note)
+* `"SILUSD"` (Micro Silver Futures)
+* `"ZCUSX"` (Corn Futures)
+* `"HEUSX"` (Lean Hogs Futures)
+* `"PLUSD"` (Platinum)
+* `"HGUSD"` (Copper)
+* `"MGCUSD"` (Micro Gold Futures)
+* `"SBUSX"` (Sugar)
+* `"SIUSD"` (Silver Futures)
+* `"CTUSX"` (Cotton)
+* `"DXUSD"` (US Dollar)
+* `"ZSUSX"` (Soybean Futures)
+* `"LBUSD"` (Lumber Futures)
+* `"LEUSX"` (Live Cattle Futures)
+* `"NGUSD"` (Natural Gas)
+* `"CLUSD"` (Crude Oil)
+* `"OJUSX"` (Orange Juice)
+* `"KCUSX"` (Coffee)
+* `"PAUSD"` (Palladium)
+* `"GFUSX"` (Feeder Cattle Futures)
+* `"ZTUSD"` (2-Year T-Note Futures)
+* `"ZRUSD"` (Rough Rice Futures)
+* `"CCUSD"` (Cocoa)
+* `"NQUSD"` (Nasdaq 100)
+* `"ZNUSD"` (10-Year T-Note Futures)
+* `"RTYUSD"` (Micro E-mini Russell 2000 Index Futures)
+* `"BZUSD"` (Brent Crude Oil)
+* `"DCUSD"` (Class III Milk Futures)
+* `"YMUSD"` (Mini Dow Jones Industrial Average Index)
+* `"RBUSD"` (Gasoline RBOB)
+* `"HOUSD"` (Heating Oil)
+
 **metric**: Metric: `"list"`, `"price"`, `"fullquote"`, `"history"`. Required.
 
 **fromDate**: Start date for history.
