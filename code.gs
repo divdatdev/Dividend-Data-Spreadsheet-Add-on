@@ -1728,6 +1728,262 @@ function DIVIDENDDATA_QUOTE_BATCH(symbols, metrics = "all", showHeaders) {
 }
 
 
+
+
+/**
+ * Retrieves cryptocurrency data. Returns list, price, full quote, or history.
+ * @param {string} symbol - Cryptocurrency symbol (e.g., BTCUSD).
+ * @param {string} metric - Metric: list, price, fullquote, history.
+ * @param {string} [fromDate] - Start date for history.
+ * @param {string} [toDate] - End date for history.
+ * @param {boolean} [showHeaders=true] - Include headers for tables.
+ * @return {number|string|array} - Cryptocurrency data.
+ * @customfunction
+ */
+function DIVIDENDDATA_CRYPTO(symbol, metric, fromDate, toDate, showHeaders = true) {
+  const apiKey = getApiKey();
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
+
+  try {
+    let actualFromDate = fromDate;
+    let actualToDate = toDate;
+    let actualShowHeaders = showHeaders;
+
+    // Adjust parameters if showHeaders is misplaced
+    if (typeof toDate === 'boolean') {
+      actualShowHeaders = toDate;
+      actualToDate = undefined;
+    }
+    if (typeof fromDate === 'boolean') {
+      actualShowHeaders = fromDate;
+      actualFromDate = undefined;
+      actualToDate = undefined;
+    }
+
+    // Handle year-only dates for history
+    if (typeof actualFromDate === 'string' && actualFromDate.match(/^\d{4}$/)) {
+      actualFromDate += '-01-01';
+    }
+    if (typeof actualToDate === 'string' && actualToDate.match(/^\d{4}$/)) {
+      actualToDate += '-12-31';
+    }
+
+    // Default to last 365 days if no dates provided for history
+    if (metric.toLowerCase() === 'history' && !actualFromDate && !actualToDate) {
+      const today = new Date();
+      const oneYearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000);
+      actualFromDate = oneYearAgo.toISOString().split('T')[0];
+      actualToDate = today.toISOString().split('T')[0];
+    }
+
+    let url, content, data;
+
+    // Function to format headers to human-readable
+    function formatHeader(key) {
+      return key
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    const loweredMetric = metric.toLowerCase();
+
+    switch (loweredMetric) {
+      case 'list':
+        url = `https://financialmodelingprep.com/stable/cryptocurrency-list?apikey=${apiKey}`;
+        content = fetchWithCache(url, 86400);  // 24 hours
+        data = JSON.parse(content);
+
+        if (data.length === 0) return [['No cryptocurrency list data available']];
+
+        const rawHeaders = Object.keys(data[0]);
+        const formattedHeaders = rawHeaders.map(formatHeader);
+
+        let table = data.map(row => rawHeaders.map(key => row[key] || ''));
+
+        if (actualShowHeaders) {
+          table.unshift(formattedHeaders);
+        }
+
+        return table;
+
+      case 'price':
+      case 'fullquote':
+        if (!symbol) return 'Symbol parameter is required for price or fullquote.';
+        symbol = symbol.toUpperCase();
+        url = `https://financialmodelingprep.com/stable/quote?symbol=${symbol}&apikey=${apiKey}`;
+        content = fetchWithCache(url, 60);
+        data = JSON.parse(content);
+
+        if (data.length === 0) return 'No quote data available for symbol ' + symbol;
+
+        if (loweredMetric === 'price') {
+          return data[0].price || 0;
+        } else { // fullquote
+          const item = data[0];
+          const rawHeaders = Object.keys(item);
+          const formattedHeaders = rawHeaders.map(formatHeader);
+
+          const row = rawHeaders.map(key => {
+            let value = item[key];
+            if (key.toLowerCase().includes('timestamp')) {
+              return new Date(value * 1000);
+            }
+            return value !== null ? value : '';
+          });
+
+          let fullTable = [row];
+
+          if (actualShowHeaders) {
+            fullTable.unshift(formattedHeaders);
+          }
+
+          return fullTable;
+        }
+
+      case 'history':
+        if (!symbol) return 'Symbol parameter is required for history.';
+        symbol = symbol.toUpperCase();
+        url = `https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${symbol}`;
+        if (actualFromDate) url += `&from=${actualFromDate}`;
+        if (actualToDate) url += `&to=${actualToDate}`;
+        url += `&apikey=${apiKey}`;
+        
+        content = fetchWithCache(url, 300);
+        data = JSON.parse(content);
+
+        if (data.length === 0) return [['No historical data available for symbol ' + symbol]];
+
+        // Sort by date descending (latest first)
+        data.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        const desiredKeys = ['date', 'price', 'volume'];
+        const formattedHeaders2 = desiredKeys.map(formatHeader);
+
+        let historyTable = data.map(row => desiredKeys.map(key => {
+          let value = row[key];
+          if (key.toLowerCase() === 'date') {
+            return new Date(value);
+          }
+          return typeof value === 'number' ? value : value || '';
+        }));
+
+        if (actualShowHeaders) {
+          historyTable.unshift(formattedHeaders2);
+        }
+
+        return historyTable;
+
+      default:
+        return 'Invalid metric: ' + metric + '. Valid metrics are: list, price, fullquote, history.';
+    }
+  } catch (error) {
+    return 'An error occurred while fetching cryptocurrency data for symbol ' + symbol + ' and metric ' + metric + '. Please check the parameters.';
+  }
+}
+
+
+
+
+/**
+ * Retrieves analyst price targets for a stock. Returns summary metrics, consensus values, or news list.
+ * @param {string} symbol - Stock ticker symbol (e.g., AAPL).
+ * @param {string} [metric="summary"] - Metric: summary, high, low, consensus, median, news.
+ * @param {boolean} [showHeaders] - Include headers for summary or news tables (defaults to true for summary/news, false otherwise).
+ * @return {number|string|array} - Price target data.
+ * @customfunction
+ */
+function DIVIDENDDATA_PRICE_TARGET(symbol, metric = "summary", showHeaders) {
+  const apiKey = getApiKey();
+  if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
+
+  try {
+    symbol = symbol.toUpperCase();
+    const loweredMetric = metric.toLowerCase();
+
+    const effectiveShowHeaders = showHeaders ?? (loweredMetric === "summary" || loweredMetric === "news");
+
+    let url, content, data;
+
+    if (loweredMetric === "summary") {
+      url = `https://financialmodelingprep.com/stable/price-target-summary?symbol=${symbol}&apikey=${apiKey}`;
+      content = fetchWithCache(url, 300);
+      data = JSON.parse(content);
+
+      if (data.length === 0) return [['No summary data available for symbol ' + symbol]];
+
+      const item = data[0];
+      const keys = ["lastMonthCount", "lastMonthAvgPriceTarget", "lastQuarterCount", "lastQuarterAvgPriceTarget", "lastYearCount", "lastYearAvgPriceTarget", "allTimeCount", "allTimeAvgPriceTarget", "publishers"];
+      const formattedHeaders = keys.map(key => key.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase()));
+
+      const row = keys.map(key => {
+        let value = item[key];
+        if (key === "publishers") {
+          try {
+            return JSON.parse(value).join(", ");
+          } catch {
+            return value;
+          }
+        }
+        return value;
+      });
+
+      let table = [row];
+      if (effectiveShowHeaders) {
+        table.unshift(formattedHeaders);
+      }
+      return table;
+
+    } else if (["high", "low", "consensus", "median"].includes(loweredMetric)) {
+      url = `https://financialmodelingprep.com/stable/price-target-consensus?symbol=${symbol}&apikey=${apiKey}`;
+      content = fetchWithCache(url, 300);
+      data = JSON.parse(content);
+
+      if (data.length === 0) return 0;
+
+      const item = data[0];
+      const keyMap = {
+        "high": "targetHigh",
+        "low": "targetLow",
+        "consensus": "targetConsensus",
+        "median": "targetMedian"
+      };
+      return item[keyMap[loweredMetric]] || 0;
+
+    } else if (loweredMetric === "news") {
+      url = `https://financialmodelingprep.com/stable/price-target-news?symbol=${symbol}&page=0&limit=10&apikey=${apiKey}`;
+      content = fetchWithCache(url, 300);
+      data = JSON.parse(content);
+
+      if (data.length === 0) return [['No price target news available for symbol ' + symbol]];
+
+      data.sort((a, b) => new Date(b.publishedDate) - new Date(a.publishedDate));
+
+      const keys = ["publishedDate", "newsTitle", "analystName", "priceTarget", "adjPriceTarget", "priceWhenPosted", "newsPublisher", "newsBaseURL", "analystCompany", "newsURL"];
+      const formattedHeaders = keys.map(key => key.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase()));
+
+      const table = data.map(row => keys.map(key => {
+        let value = row[key];
+        if (key === "publishedDate") {
+          return new Date(value);
+        }
+        return value || (["priceTarget", "adjPriceTarget", "priceWhenPosted"].includes(key) ? 0 : '');
+      }));
+
+      if (effectiveShowHeaders) {
+        table.unshift(formattedHeaders);
+      }
+      return table;
+
+    } else {
+      return 'Invalid metric: ' + metric + '. Valid metrics are: summary, high, low, consensus, median, news.';
+    }
+  } catch (error) {
+    return 'An error occurred while fetching price target data for symbol ' + symbol + ' and metric ' + metric + '. Please check the symbol and parameters.';
+  }
+}
+
+
 // Add-on menu
 function onOpen(e) {
   SpreadsheetApp.getUi()
