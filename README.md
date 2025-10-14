@@ -723,3 +723,68 @@ _Full list of symbols:_
 
 **Output**: Commodities list table with headers.
 
+## 14) DIVIDENDDATA_CRYPTO
+### Description
+Retrieves cryptocurrency data, such as prices or history. Useful for tracking crypto markets like Bitcoin or Ethereum.
+
+### Parameters
+**symbol**: Cryptocurrency symbol (e.g., "BTCUSD"). Required except for "list".
+
+_Full list of symbols (examples, may vary):_
+* `"BTCUSD"` (Bitcoin)
+* `"ETHUSD"` (Ethereum)
+* `"BNBUSD"` (Binance Coin)
+* `"XRPUSD"` (Ripple)
+* `"ADAUSD"` (Cardano)
+* `"SOLUSD"` (Solana)
+* `"DOGEUSD"` (Dogecoin)
+* `"LINKUSD"` (Chainlink)
+
+**metric**: Metric: `"list"`, `"price"`, `"fullquote"`, `"history"`. Required.
+
+**fromDate**: Start date for history (`"YYYY-MM-DD"`).
+
+**toDate**: End date for history (`"YYYY-MM-DD"`).
+
+**showHeaders**: Include headers for tables (default: `true`).
+
+### Examples:
+
+**Input**: `=DIVIDENDDATA_CRYPTO("BTCUSD", "price")`
+
+**Output**: Current Bitcoin price.
+
+**Input**: `=DIVIDENDDATA_CRYPTO(, "list", , , TRUE)`
+
+**Output**: Cryptocurrencies list table with headers.
+
+**Input**: `=DIVIDENDDATA_CRYPTO("ETHUSD", "history", "2024-01-01", "2024-12-31", TRUE)`
+
+**Output**: Historical Ethereum price table with headers.
+
+## 15) DIVIDENDDATA_PRICE_TARGET
+### Description
+Retrieves analyst price targets for a stock. Returns summary metrics, consensus values, or news list. Useful for gauging market expectations and analyst opinions.
+
+### Parameters
+**symbol**: Stock ticker symbol (e.g., `"AAPL"`). Required.
+
+**metric**: Metric: `"summary"`, `"high"`, `"low"`, `"consensus"`, `"median"`, `"news"` (default: `"summary"`).
+
+**showHeaders**: Include headers for summary or news tables (defaults to true for summary/news, false otherwise).
+
+### Examples:
+
+**Input**: `=DIVIDENDDATA_PRICE_TARGET("AAPL", "consensus")`
+
+**Output**: Consensus price target.
+
+**Input**: `=DIVIDENDDATA_PRICE_TARGET("MSFT", "summary", TRUE)`
+
+**Output**: Price target summary table with headers.
+
+**Input**: `=DIVIDENDDATA_PRICE_TARGET("GOOGL", "news", TRUE)`
+
+**Output**: Recent price target news table with headers.
+
+</DOCUMENT>
