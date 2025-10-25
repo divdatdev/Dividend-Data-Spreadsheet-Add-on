@@ -1,10 +1,12 @@
-// Set API Key for Fmp
+// code.gs
 
+// Global flag for refresh
+var forceRefresh = false;
+
+// Set API Key for Fmp
 function setApiKey() {
-  // Run this ONCE to set your key (replace with your real key).
-  // In production, prompt users or use a settings sidebar.
   const properties = PropertiesService.getUserProperties();
-  properties.setProperty('FMP_API_KEY', 'f5b9d1bd0535959d2309799bf894cfaa');  // Your key here
+  properties.setProperty('FMP_API_KEY', 'f5b9d1bd0535959d2309799bf894cfaa');
   console.log('API key set!');
 }
 
@@ -13,181 +15,436 @@ function getApiKey() {
   return PropertiesService.getUserProperties().getProperty('FMP_API_KEY');
 }
 
-
 // Helper function for cached API fetch
 function fetchWithCache(url, ttl = 300) {
   const cache = CacheService.getScriptCache();
-  let content = cache.get(url);
-  if (content) {
-    return content;
+  if (!forceRefresh) {
+    let content = cache.get(url);
+    if (content) {
+      return content;
+    }
   }
-  const response = UrlFetchApp.fetch(url);
-  content = response.getContentText();
-  if (content.length < 90000) {
+  const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  const contentType = response.getHeaders()['Content-Type'];
+  if (!contentType.includes('application/json')) {
+    throw new Error('Invalid response from server. Please try again or upgrade ngrok plan.');
+  }
+  const content = response.getContentText();
+  if (!forceRefresh && content.length < 90000) {
     cache.put(url, content, ttl);
   }
   return content;
 }
 
-// Helper function to calculate dividend CAGR for a given period
-function getDividendCAGR(symbol, years) {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error('API key not set. Please run setApiKey() to configure.');
+// Helper to check if user is signed in
+function isSignedIn() {
+  var userProperties = PropertiesService.getUserProperties();
+  return !!userProperties.getProperty('userEmail');
+}
 
-  const url = `https://financialmodelingprep.com/stable/dividends?symbol=${symbol}&apikey=${apiKey}`;
-  const content = fetchWithCache(url, 3600);  // 1 hour for dividends
-  const data = JSON.parse(content);
-
-  if (data.length === 0) return 0;
-
-  // Data is sorted latest first (descending paymentDate)
-  const latest = data[0];
-  const latestDate = new Date(latest.paymentDate);
-
-  let daysBack;
-  switch (years) {
-    case 1: daysBack = 335; break;  // Improved from 335 to 365 for consistency
-    case 3: daysBack = 1095; break;
-    case 5: daysBack = 1825; break;
-    case 10: daysBack = 3650; break;
-    default: throw new Error('Invalid years parameter for CAGR. Use 1, 3, 5, or 10.');
+// Helper to get user email (check stored, error if not set)
+function getUserEmail() {
+  var userProperties = PropertiesService.getUserProperties();
+  var email = userProperties.getProperty('userEmail');
+  
+  if (!email) {
+    throw new Error('Please sign in via the Extensions > Dividend Data menu to register your email.');
   }
+  return email;
+}
 
-  const pastThreshold = new Date(latestDate.getTime() - daysBack * 24 * 60 * 60 * 1000);
+// Helper to check and log credits (no UI, return message on limit)
+function checkCredits(email) {
+  var url = 'https://menarchial-unrepulsively-mammie.ngrok-free.dev/checkAndLogCredits';
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ email: email }),
+    muteHttpExceptions: true
+  };
+  
+  try {
+    var response = UrlFetchApp.fetch(url, options);
+    var contentType = response.getHeaders()['Content-Type'];
+    if (!contentType.includes('application/json')) {
+      Logger.log('checkCredits failed: Non-JSON response: ' + response.getContentText());
+      return 'Error: Invalid response from server. Please try again.';
+    }
+    var data = JSON.parse(response.getContentText());
+    
+    if (data.error) {
+      return "Monthly credit limit exceeded. Upgrade here: https://your-site.com/upgrade";
+    }
+    
+    return data;
+  } catch (e) {
+    Logger.log('checkCredits exception: ' + e.message);
+    return 'Error checking credits: ' + e.message;
+  }
+}
 
-  // Find the newest entry with paymentDate <= pastThreshold
-  let pastEntry = null;
-  for (let entry of data) {
-    const entryDate = new Date(entry.paymentDate);
-    if (entryDate <= pastThreshold) {
-      pastEntry = entry;
-      break;  // First match is the newest due to descending sort
+// Sign-in: Auto-detect email, confirm, or prompt
+function signIn() {
+  var ui = SpreadsheetApp.getUi();
+  var email = Session.getActiveUser().getEmail();
+ 
+  if (email && email.includes('@')) {
+    var response = ui.alert('Confirm Email', 'Is this your email: ' + email + '?', ui.ButtonSet.OK_CANCEL);
+    if (response != ui.Button.OK) {
+      var promptResponse = ui.prompt('Sign In', 'Enter your email:', ui.ButtonSet.OK_CANCEL);
+      if (promptResponse.getSelectedButton() != ui.Button.OK) {
+        ui.alert('Sign-in canceled.');
+        return;
+      }
+      email = promptResponse.getResponseText().trim();
+      if (!email || !email.includes('@')) {
+        ui.alert('Error: Please enter a valid email.');
+        return;
+      }
+    }
+  } else {
+    var promptResponse = ui.prompt('Sign In', 'Enter your email:', ui.ButtonSet.OK_CANCEL);
+    if (promptResponse.getSelectedButton() != ui.Button.OK) {
+      ui.alert('Sign-in canceled.');
+      return;
+    }
+    email = promptResponse.getResponseText().trim();
+    if (!email || !email.includes('@')) {
+      ui.alert('Error: Please enter a valid email.');
+      return;
     }
   }
+ 
+  var url = 'https://menarchial-unrepulsively-mammie.ngrok-free.dev/register';
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ email: email }),
+    muteHttpExceptions: true
+  };
+ 
+  try {
+    var response = UrlFetchApp.fetch(url, options);
+    var contentType = response.getHeaders()['Content-Type'];
+    if (!contentType.includes('application/json')) {
+      ui.alert('Error: Invalid response from server. Please try again or upgrade ngrok plan.');
+      return;
+    }
+    var data = JSON.parse(response.getContentText());
+   
+    if (data.error && data.error === "Email already registered") {
+      var userProperties = PropertiesService.getUserProperties();
+      userProperties.setProperty('userEmail', email);
+      clearUserTierCache(); // Clear tier cache on sign-in
+      ui.alert('Success! Email ' + email + ' already registered. Signed in.');
+      return;
+    }
+   
+    if (data.error) {
+      ui.alert('Error: ' + data.error);
+      return;
+    }
+   
+    var userProperties = PropertiesService.getUserProperties();
+    userProperties.setProperty('userEmail', email);
+    clearUserTierCache(); // Clear tier cache on sign-in
+    ui.alert('Success! Signed in with email ' + email + '.');
+  } catch (e) {
+    ui.alert('Error: ' + e.message);
+  }
+}
 
-  if (!pastEntry) return 0;
-
-  const latestAdj = parseFloat(latest.adjDividend);
-  const pastAdj = parseFloat(pastEntry.adjDividend);
-
-  if (isNaN(latestAdj) || isNaN(pastAdj) || pastAdj === 0) return 0;
-
-  const cagr = Math.pow(latestAdj / pastAdj, 1 / years) - 1;
-  return isNaN(cagr) ? 0 : cagr;
+// Get data credits for the user (read-only, no logging)
+function GETDATACREDITS() {
+  if (!isSignedIn()) {
+    return 'Please sign in via the Extensions > Dividend Data menu to continue.';
+  }
+  try {
+    var email = getUserEmail();
+    var url = 'https://menarchial-unrepulsively-mammie.ngrok-free.dev/getCredits';
+    var options = {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ email: email }),
+      muteHttpExceptions: true
+    };
+    
+    var response = UrlFetchApp.fetch(url, options);
+    var contentType = response.getHeaders()['Content-Type'];
+    if (!contentType.includes('application/json')) {
+      Logger.log('GETDATACREDITS failed: Non-JSON response: ' + response.getContentText());
+      return 'Error: Invalid response from server. Please try again or upgrade ngrok plan.';
+    }
+    var data = JSON.parse(response.getContentText());
+    
+    if (data.error) {
+      Logger.log('GETDATACREDITS error: ' + data.error);
+      return 'Error: ' + data.error;
+    }
+    
+    return [data.userEmail, data.executionsThisMonth, data.lastExecution];
+  } catch (e) {
+    Logger.log('GETDATACREDITS exception: ' + e.message);
+    return 'Error: ' + e.message;
+  }
 }
 
 
-// FUNCTIONS
+// Get user tier
+function getUserTier() {
+  var cache = CacheService.getUserCache();
+  var cachedTier = cache.get('userTier');
+  if (cachedTier && !forceRefresh) {
+    return cachedTier;
+  }
+  
+  var email = getUserEmail();
+  var url = 'https://menarchial-unrepulsively-mammie.ngrok-free.dev/getUserTier?email=' + encodeURIComponent(email);
+  var options = {
+    method: 'get',
+    muteHttpExceptions: true
+  };
+  
+  try {
+    var response = UrlFetchApp.fetch(url, options);
+    var contentType = response.getHeaders()['Content-Type'];
+    if (!contentType.includes('application/json')) {
+      Logger.log('getUserTier failed: Non-JSON response: ' + response.getContentText());
+      return 'other';
+    }
+    var data = JSON.parse(response.getContentText());
+    
+    if (data.error) {
+      Logger.log('getUserTier error: ' + data.error);
+      return 'other';
+    }
+    
+    var tier = data.plan; // Expect scalar after api.R fix
+    cache.put('userTier', tier, 300); // Cache for 5 min
+    return tier;
+  } catch (e) {
+    Logger.log('getUserTier exception: ' + e.message);
+    return 'other';
+  }
+}
+
+// Clear cached tier on sign-in/upgrade
+function clearUserTierCache() {
+  CacheService.getUserCache().remove('userTier');
+}
+
+// Gatekeeping helper
+function checkTierForFunction(functionName) {
+  var tier = getUserTier();
+  var requiredTier = {
+    'DIVIDENDDATA': 'free',
+    'DIVIDENDDATA_STATEMENT': 'free',
+    'DIVIDENDDATA_METRICS': 'free',
+    'DIVIDENDDATA_RATIOS': 'free',
+    'DIVIDENDDATA_GROWTH': 'free',
+    'DIVIDENDDATA_QUOTE': 'free',
+    'DIVIDENDDATA_PROFILE': 'free',
+    'DIVIDENDDATA_BATCH': 'hobby',
+    'DIVIDENDDATA_QUOTE_BATCH': 'hobby',
+    'DIVIDENDDATA_FUND': 'hobby',
+    'DIVIDENDDATA_SEGMENTS': 'pro',
+    'DIVIDENDDATA_KPIS': 'pro',
+    'DIVIDENDDATA_COMMODITIES': 'pro',
+    'DIVIDENDDATA_CRYPTO': 'pro',
+    'DIVIDENDDATA_PRICE_TARGET': 'pro'
+  }[functionName];
+  
+  var tierLevels = {
+    'free': 0,
+    'hobby': 1,
+    'pro': 2,
+    'enterprise': 3,
+    'other': 0
+  };
+  
+  if (tierLevels[tier] < tierLevels[requiredTier]) {
+    return `Upgrade to ${requiredTier} or higher to use this feature. Visit https://your-site.com/upgrade`;
+  }
+  return true;
+}
+
+
+// Update getUserCredits to use GETUSERTIER and GETDATACREDITS
+function getUserCredits() {
+  if (!isSignedIn()) {
+    return 'Please sign in to view credits.';
+  }
+  try {
+    var tier = getUserTier();
+    if (tier === 'other') {
+      return 'Error fetching user tier. Please try again.';
+    }
+    var credits = GETDATACREDITS();
+    if (typeof credits === 'string') {
+      return credits; // Error message from GETDATACREDITS
+    }
+    var executions = credits[1]; // From [email, executions, last]
+    var monthlyLimit = tier === 'free' ? 500 : tier === 'hobby' ? 5000 : tier === 'pro' ? 25000 : tier === 'enterprise' ? 100000 : 500;
+    var message = `Plan: ${tier}\nUsed: ${executions} / ${monthlyLimit} this month.`;
+    if (executions >= monthlyLimit) {
+      message += '\n\nLimit reached. Upgrade at <a href="https://your-site.com/upgrade" target="_blank">Upgrade Plan</a>';
+    }
+    return message;
+  } catch (e) {
+    Logger.log('getUserCredits exception: ' + e.message);
+    return 'Error fetching credits or tier: ' + e.message;
+  }
+}
+
+
+
+// UPDATED FUNCTIONS WITH CREDIT CHECKS
 
 /**
  * Retrieves dividend data for a stock. Returns values or tables for metrics like payouts, yields, history, growth, and ratios.
  * @param {string} symbol - Stock ticker symbol (e.g., MSFT).
- * @param {string} [metric="fwd_payout"] - Metric to retrieve: fwd_payout, ttm_payout, fwd_yield, ttm_yield, frequency, history, growth, 1y_cagr, 3y_cagr, 5y_cagr, 10y_cagr, payout_ratio, fcf_payout_ratio.
- * @param {boolean} [showHeaders=false] - Include headers for history or growth tables.
+ * @param {string} [metric="fwd_payout"] - Metric to retrieve: fwd_payout, ttm_payout, fwd_yield, ttm_yield, frequency, history, growth, 1y_cagr, 3y_cagr, 5y_cagr, 10y_cagr, payout_ratio, fcf_payout_ratio, summary.
+ * @param {boolean} [showHeaders] - Include headers for table metrics (history, growth, summary). Defaults to true for these, false otherwise.
  * @return {string|number|array} - Dividend data.
  * @customfunction
  */
 function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    const email = getUserEmail();
+    const creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
+    // Determine if showHeaders was explicitly provided; if not, set default based on metric
+    const showHeadersProvided = arguments.length >= 3;
+    if (!showHeadersProvided) {
+      const lowerMetric = metric.toLowerCase();
+      if (['history', 'growth', 'summary'].includes(lowerMetric)) {
+        showHeaders = true;
+      } else {
+        showHeaders = false;
+      }
+    }
+
     symbol = symbol.toUpperCase();
     let url, content, data;
 
     switch (metric.toLowerCase()) {
       case 'fwd_payout':
-        // Use original stable API - returns table [date, dividend, adjDividend], latest first
         url = `https://financialmodelingprep.com/stable/dividends?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 3600);
-        data = JSON.parse(content);
-        if (data.length === 0) return 0;
-        const latestDiv = data[0].dividend;  // Latest first
+        try {
+          data = JSON.parse(content);
+        } catch (e) {
+          return `Error parsing dividends data for ${symbol}: ${e.message}`;
+        }
+        if (!Array.isArray(data) || data.length === 0) return 0;
+        const latestDiv = data[0].dividend || 0;
         const frequency = data[0].frequency || 'quarterly';
         const periodsPerYear = { 'weekly': 52, 'monthly': 12, 'quarterly': 4, 'semiAnnual': 2, 'annual': 1, 'special': 1 }[frequency] || 4;
-        const annualDiv = parseFloat(latestDiv) * periodsPerYear;
-        return annualDiv;
+        return parseFloat(latestDiv) * periodsPerYear;
 
       case 'ttm_payout':
         url = `https://financialmodelingprep.com/stable/profile?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 300);
-        data = JSON.parse(content);
-        if (data.length === 0) return 0;
-        return data[0].lastDividend;
+        try {
+          data = JSON.parse(content);
+        } catch (e) {
+          return `Error parsing profile data for ${symbol}: ${e.message}`;
+        }
+        if (!Array.isArray(data) || data.length === 0) return 0;
+        return data[0].lastDividend || 0;
 
       case 'fwd_yield':
-        // Replicate your dividend summary (annual_dividend / price)
         url = `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${apiKey}`;
-        content = fetchWithCache(url, 60);  // Short for quotes
-        data = JSON.parse(content);
-
-        if (data.length === 0) return 'No quote data available for symbol ' + symbol;
-        const price = data[0].price;
-        const fwd_dividend = DIVIDENDDATA(symbol, 'fwd_payout');
-        if (fwd_dividend.length === 0) return 0;
-        return fwd_dividend / price;  // Yield as decimal (format in sheet as %)
+        content = fetchWithCache(url, 60);
+        try {
+          data = JSON.parse(content);
+        } catch (e) {
+          return `Error parsing quote data for ${symbol}: ${e.message}`;
+        }
+        if (!Array.isArray(data) || data.length === 0) return 'No quote data available for symbol ' + symbol;
+        const price = data[0].price || 0;
+        const fwd_dividend = DIVIDENDDATA(symbol, 'fwd_payout', showHeaders);
+        if (typeof fwd_dividend !== 'number') return 0;
+        return price > 0 ? fwd_dividend / price : 0;
 
       case 'ttm_yield':
         url = `https://financialmodelingprep.com/stable/profile?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 300);
-        data = JSON.parse(content);
-        if (data.length === 0) return 0;
-        return data[0].lastDividend / data[0].price;
+        try {
+          data = JSON.parse(content);
+        } catch (e) {
+          return `Error parsing profile data for ${symbol}: ${e.message}`;
+        }
+        if (!Array.isArray(data) || data.length === 0) return 0;
+        const lastDividend = data[0].lastDividend || 0;
+        const profilePrice = data[0].price || 0;
+        return profilePrice > 0 ? lastDividend / profilePrice : 0;
 
       case 'frequency':
         url = `https://financialmodelingprep.com/stable/dividends?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 3600);
-        data = JSON.parse(content);
-        if (data.length === 0) return 'No dividend data available for symbol ' + symbol;
-        return data[0].frequency;
+        try {
+          data = JSON.parse(content);
+        } catch (e) {
+          return `Error parsing dividends data for ${symbol}: ${e.message}`;
+        }
+        if (!Array.isArray(data) || data.length === 0) return 'No dividend data available for symbol ' + symbol;
+        return data[0].frequency || 'unknown';
 
       case 'history':
-        // Use original stable API - returns table [date, dividend, adjDividend], latest first
         url = `https://financialmodelingprep.com/stable/dividends?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 3600);
-        data = JSON.parse(content);
+        try {
+          data = JSON.parse(content);
+        } catch (e) {
+          return `Error parsing dividends data for ${symbol}: ${e.message}`;
+        }
+        if (!Array.isArray(data) || data.length === 0) return [['No dividend history available for symbol ' + symbol]];
 
-        if (data.length === 0) return [['No dividend history available for symbol ' + symbol]];
-
-        // Clean and map to 2D array (fix for Sheets spilling)
         let cleaned = data.map(row => [
-          row.declarationDate ? new Date(row.declarationDate) : '',  // Declaration Date (handle empty)
-          row.recordDate ? new Date(row.recordDate) : '',  // Record Date / Ex-Dividend Date
-          row.paymentDate ? new Date(row.paymentDate) : '',  // Payment Date
-          parseFloat(row.adjDividend.toString().replace(/^0+/, '')) || 0,  // Adjusted Dividend
-          parseFloat(row.dividend.toString().replace(/^0+/, '')) || 0,  // Dividend
-          parseFloat(row.yield.toString().replace(/^0+/, '')) / 100 || 0,  // Yield
-          row.frequency || ''  // Frequency
+          row.declarationDate ? new Date(row.declarationDate) : '',
+          row.recordDate ? new Date(row.recordDate) : '',
+          row.paymentDate ? new Date(row.paymentDate) : '',
+          parseFloat(row.adjDividend?.toString().replace(/^0+/, '') || '0') || 0,
+          parseFloat(row.dividend?.toString().replace(/^0+/, '') || '0') || 0,
+          parseFloat(row.yield?.toString().replace(/^0+/, '') || '0') / 100 || 0,
+          row.frequency || ''
         ]);
 
-        // Optional headers
         if (showHeaders) {
           cleaned.unshift(['Declaration Date', 'Record Date', 'Payment Date', 'Adjusted Dividend', 'Dividend', 'Yield', 'Frequency']);
         }
-
-        return cleaned;  // Latest first (no reverse)
+        return cleaned;
 
       case 'growth':
-        // Replicate your dividend_growth_calc: % change YoY from history
-        const histData = DIVIDENDDATA(symbol, 'history');  // Get without headers
-        if (histData.length < 2) return [['Insufficient dividend history for growth calculation for symbol ' + symbol]];
+        const histData = DIVIDENDDATA(symbol, 'history', false);
+        if (!Array.isArray(histData) || histData.length < 2) return [['Insufficient dividend history for growth calculation for symbol ' + symbol]];
 
-        // Data is latest first (descending dates)
-        // For growth, calculate (current - previous) / abs(previous), where previous is older (next row)
         const growth = [];
         for (let i = 0; i < histData.length - 1; i++) {
-          const currentAdj = histData[i][4];  // Adjusted Dividend index
-          const previousAdj = histData[i + 1][4];  // Older
+          const currentAdj = histData[i][4];
+          const previousAdj = histData[i + 1][4];
           const rate = previousAdj !== 0 ? (currentAdj - previousAdj) / Math.abs(previousAdj) : 0;
-          growth.push([histData[i][1], rate]);  // Use Ex-Div Date (index 1), raw rate
+          growth.push([histData[i][1], rate]);
         }
-        growth.push([histData[histData.length - 1][1], 0]);  // Last has 0
+        growth.push([histData[histData.length - 1][1], 0]);
 
-        // Optional headers
         if (showHeaders) {
           growth.unshift(['Date', 'Growth Rate']);
         }
-
         return growth;
 
       case '1y_cagr':
@@ -203,34 +460,164 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
         return getDividendCAGR(symbol, 10);
 
       case 'payout_ratio':
-        // EPS payout ratio from stable ratios endpoint
         url = `https://financialmodelingprep.com/stable/ratios?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 3600);
-        data = JSON.parse(content);
-
-        if (data.length === 0) return 'No ratio data available for symbol ' + symbol;
-        const payoutRatio = data[0].dividendPayoutRatio || 0;
-        return payoutRatio;  // Raw number (user formats as % in Sheets)
+        try {
+          data = JSON.parse(content);
+        } catch (e) {
+          return `Error parsing ratios data for ${symbol}: ${e.message}`;
+        }
+        if (!Array.isArray(data) || data.length === 0) return 'No ratio data available for symbol ' + symbol;
+        return data[0].dividendPayoutRatio || 0;
 
       case 'fcf_payout_ratio':
-        // FCF payout ratio from stable ratios endpoint: (dividendPerShare / freeCashFlowPerShare) * 100
         url = `https://financialmodelingprep.com/stable/ratios?symbol=${symbol}&apikey=${apiKey}`;
         content = fetchWithCache(url, 3600);
-        data = JSON.parse(content);
-
-        if (data.length === 0) return 'No ratio data available for symbol ' + symbol;
+        try {
+          data = JSON.parse(content);
+        } catch (e) {
+          return `Error parsing ratios data for ${symbol}: ${e.message}`;
+        }
+        if (!Array.isArray(data) || data.length === 0) return 'No ratio data available for symbol ' + symbol;
         const divPerShare = data[0].dividendPerShare || 0;
         const fcfPerShare = data[0].freeCashFlowPerShare || 0;
-        return fcfPerShare > 0 ? (divPerShare / fcfPerShare) : 0;  // Raw number or 0
+        return fcfPerShare > 0 ? (divPerShare / fcfPerShare) : 0;
+
+      case 'summary':
+        // Fetch all required data
+        const dividendsUrl = `https://financialmodelingprep.com/stable/dividends?symbol=${symbol}&apikey=${apiKey}`;
+        const profileUrl = `https://financialmodelingprep.com/stable/profile?symbol=${symbol}&apikey=${apiKey}`;
+        const quoteUrl = `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${apiKey}`;
+        const ratiosUrl = `https://financialmodelingprep.com/stable/ratios?symbol=${symbol}&apikey=${apiKey}`;
+
+        let dividendsData, profileData, quoteData, ratiosData;
+        try {
+          const [dividendsContent, profileContent, quoteContent, ratiosContent] = [
+            fetchWithCache(dividendsUrl, 3600),
+            fetchWithCache(profileUrl, 300),
+            fetchWithCache(quoteUrl, 60),
+            fetchWithCache(ratiosUrl, 3600)
+          ];
+          dividendsData = JSON.parse(dividendsContent);
+          profileData = JSON.parse(profileContent);
+          quoteData = JSON.parse(quoteContent);
+          ratiosData = JSON.parse(ratiosContent);
+        } catch (e) {
+          return `Error parsing API response for ${symbol} in summary: ${e.message}`;
+        }
+
+        // Validate data
+        if (!Array.isArray(dividendsData)) return `Invalid dividends data format for ${symbol}`;
+        if (!Array.isArray(profileData)) return `Invalid profile data format for ${symbol}`;
+        if (!Array.isArray(quoteData)) return `Invalid quote data format for ${symbol}`;
+        if (!Array.isArray(ratiosData)) return `Invalid ratios data format for ${symbol}`;
+
+        // Compute metrics
+        let fwd_payout = 0;
+        let payment_frequency = 'No dividend data';
+        if (dividendsData.length > 0 && dividendsData[0]) {
+          const latestDiv = dividendsData[0].dividend || 0;
+          payment_frequency = dividendsData[0].payment_frequency || 'quarterly';
+          const periodsPerYear = { 'weekly': 52, 'monthly': 12, 'quarterly': 4, 'semiAnnual': 2, 'annual': 1, 'special': 1 }[payment_frequency] || 4;
+          fwd_payout = parseFloat(latestDiv) * periodsPerYear;
+        }
+
+        const ttm_payout = profileData.length > 0 && profileData[0] ? profileData[0].lastDividend || 0 : 0;
+
+        const div_price = quoteData.length > 0 && quoteData[0] ? quoteData[0].div_price || 0 : 0;
+        const fwd_yield = div_price > 0 && fwd_payout > 0 ? fwd_payout / div_price : 0;
+        const ttm_yield = profileData.length > 0 && profileData[0] && profileData[0].div_price > 0 ? (profileData[0].lastDividend || 0) / profileData[0].div_price : 0;
+
+        const payout_ratio = ratiosData.length > 0 && ratiosData[0] ? ratiosData[0].dividendPayoutRatio || 0 : 0;
+        const fcf_payout_ratio = ratiosData.length > 0 && ratiosData[0] && ratiosData[0].freeCashFlowPerShare > 0
+          ? (ratiosData[0].dividendPerShare || 0) / ratiosData[0].freeCashFlowPerShare
+          : 0;
+
+        // For CAGR, reuse dividendsData
+        const y1_cagr = dividendsData.length > 0 ? getDividendCAGR(symbol, 1, dividendsData) : 0;
+        const y3_cagr = dividendsData.length > 0 ? getDividendCAGR(symbol, 3, dividendsData) : 0;
+        const y5_cagr = dividendsData.length > 0 ? getDividendCAGR(symbol, 5, dividendsData) : 0;
+        const y10_cagr = dividendsData.length > 0 ? getDividendCAGR(symbol, 10, dividendsData) : 0;
+
+        const values = [
+          fwd_payout,
+          fwd_yield,
+          ttm_payout,
+          ttm_yield,
+          payment_frequency,
+          y1_cagr,
+          y3_cagr,
+          y5_cagr,
+          y10_cagr,
+          payout_ratio,
+          fcf_payout_ratio
+        ];
+
+        let summaryData = [values];
+
+        if (showHeaders) {
+          summaryData.unshift([
+            'Annual Dividend (FWD)',
+            'Dividend Yield (FWD)',
+            'Annual Dividend (TTM)',
+            'Dividend Yield (TTM)',
+            'Payment Frequency',
+            '1 Year CAGR',
+            '3 Year CAGR',
+            '5 Year CAGR',
+            '10 Year CAGR',
+            'Payout Ratio (Net Income)',
+            'Payout Ratio (Free Cash Flow)'
+          ]);
+        }
+
+        return summaryData;
 
       default:
-        return 'Invalid metric: ' + metric + '. Valid metrics are: fwd_payout, ttm_payout, fwd_yield, ttm_yield, frequency, history, growth, 1y_cagr, 3y_cagr, 5y_cagr, 10y_cagr, payout_ratio, fcf_payout_ratio.';
+        return 'Invalid metric: ' + metric + '. Valid metrics are: fwd_payout, ttm_payout, fwd_yield, ttm_yield, frequency, history, growth, 1y_cagr, 3y_cagr, 5y_cagr, 10y_cagr, payout_ratio, fcf_payout_ratio, summary.';
     }
   } catch (error) {
-    return 'An error occurred while fetching data for symbol ' + symbol + ' and metric ' + metric + '. Please check the symbol and parameters.';
+    return `General error for ${symbol} and metric ${metric}: ${error.message}`;
   }
 }
 
+
+function getDividendCAGR(symbol, years, dividendsData = null) {
+  try {
+    if (!dividendsData) {
+      const url = `https://financialmodelingprep.com/stable/dividends?symbol=${symbol}&apikey=${getApiKey()}`;
+      dividendsData = JSON.parse(fetchWithCache(url, 3600));
+    }
+    if (!Array.isArray(dividendsData) || dividendsData.length < 2) return 0;
+
+    // Filter dividends within the specified years
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(endDate.getFullYear() - years);
+
+    const relevantDividends = dividendsData
+      .filter(row => row.paymentDate && new Date(row.paymentDate) >= startDate && new Date(row.paymentDate) <= endDate)
+      .map(row => ({
+        date: new Date(row.paymentDate),
+        adjDividend: parseFloat(row.adjDividend?.toString().replace(/^0+/, '') || '0') || 0
+      }))
+      .sort((a, b) => a.date - b.date); // Oldest first
+
+    if (relevantDividends.length < 2) return 0;
+
+    const firstDividend = relevantDividends[0].adjDividend;
+    const lastDividend = relevantDividends[relevantDividends.length - 1].adjDividend;
+    if (firstDividend === 0 || lastDividend === 0) return 0;
+
+    const yearsBetween = (relevantDividends[relevantDividends.length - 1].date - relevantDividends[0].date) / (1000 * 60 * 60 * 24 * 365.25);
+    if (yearsBetween <= 0) return 0;
+
+    const cagr = (Math.pow(lastDividend / firstDividend, 1 / yearsBetween) - 1);
+    return isNaN(cagr) ? 0 : cagr;
+  } catch (e) {
+    return 0; // Return 0 instead of throwing to avoid breaking summary
+  }
+}
 
 /**
  * Retrieves batch dividend data for multiple stocks. Returns table with latest or historical data for metrics like payouts or yields.
@@ -241,10 +628,22 @@ function DIVIDENDDATA(symbol, metric = "fwd_payout", showHeaders = false) {
  * @customfunction
  */
 function DIVIDENDDATA_BATCH(symbols, metric = "fwd_payout", showHeaders) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_BATCH');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
     if (!symbols) return 'Symbols parameter is required.';
 
     // Process symbols
@@ -393,10 +792,23 @@ function DIVIDENDDATA_BATCH(symbols, metric = "fwd_payout", showHeaders) {
  * @customfunction
  */
 function DIVIDENDDATA_STATEMENT(symbol, metric, showHeaders = false, period = '', year = '') {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_STATEMENT');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     let endpoint;
     switch (metric.toLowerCase()) {
@@ -485,6 +897,13 @@ function DIVIDENDDATA_STATEMENT(symbol, metric, showHeaders = false, period = ''
  * @customfunction
  */
 function DIVIDENDDATA_METRICS(symbol, metric, showHeaders = false, period = '', year = '') {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_METRICS');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
@@ -565,6 +984,12 @@ function DIVIDENDDATA_METRICS(symbol, metric, showHeaders = false, period = '', 
   };
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
     const statement = metricToStatement[loweredMetric];
@@ -624,6 +1049,13 @@ function DIVIDENDDATA_METRICS(symbol, metric, showHeaders = false, period = '', 
  * @customfunction
  */
 function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', year = '') {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_RATIOS');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
@@ -744,6 +1176,12 @@ function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', y
   };
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
     const endpoint = metricToEndpoint[loweredMetric];
@@ -823,8 +1261,6 @@ function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', y
 
 
 
-
-
 /**
  * Retrieves growth metric. Returns latest rate or history for growth like revenueGrowth or epsGrowth.
  * @param {string} symbol - Stock ticker symbol (e.g., MSFT).
@@ -836,6 +1272,13 @@ function DIVIDENDDATA_RATIOS(symbol, metric, showHeaders = false, period = '', y
  * @customfunction
  */
 function DIVIDENDDATA_GROWTH(symbol, metric, showHeaders = false, period = '', year = '') {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_GROWTH');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
@@ -882,6 +1325,12 @@ function DIVIDENDDATA_GROWTH(symbol, metric, showHeaders = false, period = '', y
   };
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
     const properRawKey = metricToRawKey[loweredMetric];
@@ -955,10 +1404,23 @@ function DIVIDENDDATA_GROWTH(symbol, metric, showHeaders = false, period = '', y
  * @customfunction
  */
 function DIVIDENDDATA_QUOTE(symbol, metric = "price", fromDate, toDate, showHeaders = true) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_QUOTE');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
 
@@ -1088,10 +1550,23 @@ function DIVIDENDDATA_QUOTE(symbol, metric = "price", fromDate, toDate, showHead
  * @customfunction
  */
 function DIVIDENDDATA_PROFILE(symbol, metric, showHeaders = false) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_PROFILE');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     const url = `https://financialmodelingprep.com/stable/profile?symbol=${symbol}&apikey=${apiKey}`;
     const content = fetchWithCache(url, 3600);
@@ -1194,10 +1669,23 @@ function DIVIDENDDATA_PROFILE(symbol, metric, showHeaders = false) {
  * @customfunction
  */
 function DIVIDENDDATA_FUND(symbol, metric, showHeaders = true) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_FUND');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
 
@@ -1316,10 +1804,23 @@ function DIVIDENDDATA_FUND(symbol, metric, showHeaders = true) {
  * @customfunction
  */
 function DIVIDENDDATA_SEGMENTS(symbol, metric, period = 'annual', year = '', showHeaders = true) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_SEGMENTS');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     const loweredMetric = String(metric).toLowerCase();
     let loweredPeriod = String(period).toLowerCase();
@@ -1419,9 +1920,22 @@ function DIVIDENDDATA_SEGMENTS(symbol, metric, period = 'annual', year = '', sho
  * @customfunction
  */
 function DIVIDENDDATA_KPIS(ticker, period = 'annual', year = '', showheaders = true) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_KPIS');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const fiscalApiKey = '025bb017-5cdd-4aef-a8fb-b36fecb3ea27';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     ticker = ticker.toUpperCase();
     const loweredPeriod = period.toLowerCase();
     if (loweredPeriod !== 'annual' && loweredPeriod !== 'quarterly') {
@@ -1509,10 +2023,23 @@ function DIVIDENDDATA_KPIS(ticker, period = 'annual', year = '', showheaders = t
  * @customfunction
  */
 function DIVIDENDDATA_COMMODITIES(symbol, metric, fromDate, toDate, showHeaders = true) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_COMMODITIES');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     let actualFromDate = fromDate;
     let actualToDate = toDate;
     let actualShowHeaders = showHeaders;
@@ -1659,10 +2186,23 @@ function DIVIDENDDATA_COMMODITIES(symbol, metric, fromDate, toDate, showHeaders 
  * @customfunction
  */
 function DIVIDENDDATA_QUOTE_BATCH(symbols, metrics = "all", showHeaders) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_QUOTE_BATCH');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     if (!symbols) return 'Symbols parameter is required.';
 
     // Process symbols
@@ -1741,10 +2281,23 @@ function DIVIDENDDATA_QUOTE_BATCH(symbols, metrics = "all", showHeaders) {
  * @customfunction
  */
 function DIVIDENDDATA_CRYPTO(symbol, metric, fromDate, toDate, showHeaders = true) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_CRYPTO');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     let actualFromDate = fromDate;
     let actualToDate = toDate;
     let actualShowHeaders = showHeaders;
@@ -1894,10 +2447,23 @@ function DIVIDENDDATA_CRYPTO(symbol, metric, fromDate, toDate, showHeaders = tru
  * @customfunction
  */
 function DIVIDENDDATA_PRICE_TARGET(symbol, metric = "summary", showHeaders) {
+  if (!isSignedIn()) {
+    return 'Please sign in to continue.';
+  }
+  var tierCheck = checkTierForFunction('DIVIDENDDATA_PRICE_TARGET');
+  if (typeof tierCheck === 'string') {
+    return tierCheck; // Upgrade message
+  }
   const apiKey = getApiKey();
   if (!apiKey) return 'API key not set. Please run setApiKey() to configure.';
 
   try {
+    var email = getUserEmail();
+    var creditsStatus = checkCredits(email);
+    if (typeof creditsStatus === 'string') {
+      return creditsStatus; // Limit message
+    }
+
     symbol = symbol.toUpperCase();
     const loweredMetric = metric.toLowerCase();
 
@@ -1959,7 +2525,8 @@ function DIVIDENDDATA_PRICE_TARGET(symbol, metric = "summary", showHeaders) {
 
       data.sort((a, b) => new Date(b.publishedDate) - new Date(a.publishedDate));
 
-      const keys = ["publishedDate", "newsTitle", "analystName", "priceTarget", "adjPriceTarget", "priceWhenPosted", "newsPublisher", "newsBaseURL", "analystCompany", "newsURL"];
+      //const keys = ["publishedDate", "newsTitle", "analystName", "priceTarget", "adjPriceTarget", "priceWhenPosted", "newsPublisher", "newsBaseURL", "analystCompany", "newsURL"];
+      const keys = ["publishedDate", "newsTitle", "priceTarget", "adjPriceTarget", "priceWhenPosted", "analystCompany"];
       const formattedHeaders = keys.map(key => key.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase()));
 
       const table = data.map(row => keys.map(key => {
@@ -1984,40 +2551,253 @@ function DIVIDENDDATA_PRICE_TARGET(symbol, metric = "summary", showHeaders) {
 }
 
 
-// Add-on menu
-function onOpen(e) {
-  SpreadsheetApp.getUi()
-    .createAddonMenu()
-    .addItem('Initialize User', 'initializeUser')  // New menu item to store email
-    .addItem('Open Dividend Data Sidebar', 'showSidebar')
-    .addToUi();
-}
-
-// New function to store user email in UserProperties (runs with permissions)
-function initializeUser() {
-  const ui = SpreadsheetApp.getUi();
-  const email = Session.getActiveUser().getEmail();
-  if (!email) {
-    ui.alert('Error', 'Unable to retrieve your email. Ensure permissions are granted.', ui.ButtonSet.OK);
-    return;
+// Server-side function to insert full financial statement
+function insertFinancialStatement(ticker, type = 'income', period = 'annual') {
+  try {
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API key not set.');
+    ticker = ticker.toUpperCase();
+    let endpoint;
+    switch (type.toLowerCase()) {
+      case 'income':
+        endpoint = 'income-statement';
+        break;
+      case 'balance':
+        endpoint = 'balance-sheet-statement';
+        break;
+      case 'cash_flow':
+        endpoint = 'cash-flow-statement';
+        break;
+      default:
+        throw new Error('Invalid statement type: ' + type);
+    }
+    const url = `https://financialmodelingprep.com/api/v3/${endpoint}/${ticker}?period=${period}&apikey=${apiKey}`;
+    const content = fetchWithCache(url, 3600);
+    const data = JSON.parse(content);
+    if (data.length === 0) throw new Error('No data available for ' + ticker);
+    // Sort by date descending (latest first)
+    data.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Extract keys (standardized fields like in Wisesheets)
+    const keys = Object.keys(data[0]).filter(k => k !== 'symbol' && k !== 'reportedCurrency' && k !== 'cik' && k !== 'calendarYear' && k !== 'period' && k !== 'link' && k !== 'finalLink');
+    const formattedHeaders = keys.map(key => key.replace(/([A-Z])/g, ' $1').trim().toUpperCase());
+    // Build 2D array: Rows as metrics, columns as periods
+    const sheetData = [];
+    sheetData.push(['', ...data.map(item => item.date)]); // Header row with dates
+    formattedHeaders.forEach((header, index) => {
+      const row = [header, ...data.map(item => item[keys[index]] || 0)];
+      sheetData.push(row);
+    });
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const activeRange = sheet.getActiveRange() || sheet.getRange('A1');
+    sheet.getRange(activeRange.getRow(), activeRange.getColumn(), sheetData.length, sheetData[0].length).setValues(sheetData);
+    // Formatting like Wisesheets: Bold headers, number formatting
+    const headerRange = sheet.getRange(activeRange.getRow(), activeRange.getColumn(), 1, sheetData[0].length);
+    headerRange.setFontWeight('bold').setHorizontalAlignment('center');
+    const dataRange = sheet.getRange(activeRange.getRow() + 1, activeRange.getColumn() + 1, sheetData.length - 1, sheetData[0].length - 1);
+    dataRange.setNumberFormat('#,##0.00');
+    return { success: true, message: `${type} statement inserted for ${ticker}` };
+  } catch (error) {
+    return { success: false, message: error.message };
   }
-  
-  const properties = PropertiesService.getUserProperties();
-  properties.setProperty('USER_EMAIL', email);
-  
-  ui.alert('Success', 'User initialized! Your email (' + email + ') is now stored for AI features.', ui.ButtonSet.OK);
+}
+
+// Server-side function for metrics/ratios (similar structure)
+function insertMetricsOrRatios(ticker, type = 'metrics', period = 'annual') {
+  try {
+    const apiKey = getApiKey();
+    const url = `https://financialmodelingprep.com/api/v3/${type}/${ticker}?period=${period}&apikey=${apiKey}`;
+    const content = fetchWithCache(url, 3600);
+    const data = JSON.parse(content);
+
+    if (data.length === 0) throw new Error('No data available.');
+
+    data.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const keys = Object.keys(data[0]).filter(k => k !== 'symbol' && k !== 'date');
+    const formattedHeaders = keys.map(key => key.replace(/([A-Z])/g, ' $1').trim().toUpperCase());
+
+    const sheetData = [];
+    sheetData.push(['', ...data.map(item => item.date)]);
+    formattedHeaders.forEach((header, index) => {
+      const row = [header, ...data.map(item => item[keys[index]] || 0)];
+      sheetData.push(row);
+    });
+
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const activeRange = sheet.getActiveRange() || sheet.getRange('A1');
+    sheet.getRange(activeRange.getRow(), activeRange.getColumn(), sheetData.length, sheetData[0].length).setValues(sheetData);
+
+    // Similar formatting
+    const headerRange = sheet.getRange(activeRange.getRow(), activeRange.getColumn(), 1, sheetData[0].length);
+    headerRange.setFontWeight('bold');
+    const dataRange = sheet.getRange(activeRange.getRow() + 1, activeRange.getColumn() + 1, sheetData.length - 1, sheetData[0].length - 1);
+    dataRange.setNumberFormat('#,##0.00');
+
+    return { success: true, message: `${type} inserted for ${ticker}` };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+}
+
+//insert KPIs for quick action in sidebar
+function insertKPIs(ticker, period) {
+  try {
+    let fullPeriod = period === 'quarter' ? 'quarterly' : 'annual';
+    const kpiData = DIVIDENDDATA_KPIS(ticker, fullPeriod, '', true);
+    if (typeof kpiData === 'string') throw new Error(kpiData); // Handle errors like sign-in or limit
+    if (kpiData.length === 0) throw new Error('No KPI data available for ' + ticker);
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const activeRange = sheet.getActiveRange() || sheet.getRange('A1');
+    sheet.getRange(activeRange.getRow(), activeRange.getColumn(), kpiData.length, kpiData[0].length).setValues(kpiData);
+    // Formatting: Bold first row (headers), number format for data
+    const headerRange = sheet.getRange(activeRange.getRow(), activeRange.getColumn(), 1, kpiData[0].length);
+    headerRange.setFontWeight('bold').setHorizontalAlignment('center');
+    const dataRange = sheet.getRange(activeRange.getRow() + 1, activeRange.getColumn() + 1, kpiData.length - 1, kpiData[0].length - 1);
+    dataRange.setNumberFormat('#,##0.00');
+    return { success: true, message: `KPIs inserted for ${ticker}` };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+}
+
+// Insert Price Targets for quick action in sidebar
+function insertPriceTargets(ticker) {
+  try {
+    const priceTargetData = DIVIDENDDATA_PRICE_TARGET(ticker, "news", true);
+    if (typeof priceTargetData === 'string') throw new Error(priceTargetData);
+    if (priceTargetData.length === 0) throw new Error('No price target data available for ' + ticker);
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const activeRange = sheet.getActiveRange() || sheet.getRange('A1');
+    sheet.getRange(activeRange.getRow(), activeRange.getColumn(), priceTargetData.length, priceTargetData[0].length).setValues(priceTargetData);
+    // Formatting: Bold first row (headers), number format for data
+    const headerRange = sheet.getRange(activeRange.getRow(), activeRange.getColumn(), 1, priceTargetData[0].length);
+    headerRange.setFontWeight('bold').setHorizontalAlignment('center');
+    const dataRange = sheet.getRange(activeRange.getRow() + 1, activeRange.getColumn() + 1, priceTargetData.length - 1, priceTargetData[0].length - 1);
+    dataRange.setNumberFormat('#,##0.00');
+    return { success: true, message: `Price Targets inserted for ${ticker}` };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+}
+
+// Update insertStockFormula for dividends (existing, but can call for specific metrics)
+// Server-side function called from sidebar to insert formula
+function insertStockFormula(ticker, metric = 'fwd_payout') {
+  try {
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const activeRange = sheet.getActiveRange();
+    if (!activeRange) {
+      throw new Error('No cell selected. Please select a cell to insert the formula.');
+    }
+    const formula = `=DIVIDENDDATA("${ticker.toUpperCase()}", "${metric}")`;
+    activeRange.setFormula(formula);
+    return { success: true, message: `Formula inserted for ${ticker}: ${formula}` };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+}
+
+/*
+// Function to refresh data (re-evaluate formulas)
+function refreshData() {
+  CacheService.getScriptCache().removeAll(); // Clear all cached API responses to fetch fresh data
+  SpreadsheetApp.flush(); // Apply changes and force recalculation
+  SpreadsheetApp.getActiveSpreadsheet().toast('Data refreshed with fresh API calls!');
+}
+*/
+
+// Refresh data: Clear cache and force recalculation
+function refreshData() {
+  try {
+    forceRefresh = true; // Skip caching in fetchWithCache
+    CacheService.getUserCache().remove('userTier'); // Clear tier cache
+    CacheService.getScriptCache().removeAll(['userTier']); // Clear API response cache
+    SpreadsheetApp.getActiveSpreadsheet().setRecalculationInterval(SpreadsheetApp.RecalculationInterval.ON_CHANGE);
+    SpreadsheetApp.flush(); // Force formula recalculation
+    SpreadsheetApp.getActiveSpreadsheet().toast('Data refreshed with fresh API calls!');
+  } catch (e) {
+    SpreadsheetApp.getActiveSpreadsheet().toast('Error refreshing data: ' + e.message);
+  } finally {
+    forceRefresh = false; // Reset flag
+  }
+}
+
+// On install, trigger onOpen to show sidebar
+function onInstall(e) {
+  onOpen(e);
+}
+
+// Update onOpen to include Refresh
+function onOpen(e) {
+
+  const ui = SpreadsheetApp.getUi();
+  ui.createAddonMenu()
+    .addItem('Sign In', 'signIn')
+    .addItem('Open Dividend Data Sidebar', 'showSidebar')
+    .addItem('Refresh Data', 'refreshData')
+    .addSeparator()
+    .addItem('Get Started / Onboarding', 'showOnboarding')
+    .addItem('Documentation', 'openLink')
+    .addItem('Sheet Templates', 'openTemplates')
+    .addItem('Help Center', 'openHelpCenter')
+    .addSeparator()
+    .addItem('Manage Subscription', 'openPayment')
+    .addItem('Provide Feedback', 'openFeedback')
+    .addToUi();
+
+    if (!isSignedIn()) {
+    signIn(); // Auto-trigger sign-in if no email
+  } else {
+    showSidebar(); // Auto-show sidebar on open if signed in
+  }
 }
 
 
-// Dummy sidebar function (can be expanded later)
+/* Function to show the main sidebar with enhanced UX
 function showSidebar() {
-  const html = HtmlService.createHtmlOutput('<p>Welcome to Dividend Data Add-on! Custom functions are now active.</p>')
+  const html = HtmlService.createHtmlOutputFromFile('DividendDataSidebar')
+    .setTitle('Dividend Data')
+    .setWidth(400);
+  SpreadsheetApp.getUi().showSidebar(html);
+}*/
+
+// Show sidebar
+function showSidebar() {
+  const html = HtmlService.createHtmlOutputFromFile('DividendDataSidebar')
     .setTitle('Dividend Data')
     .setWidth(300);
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
-// Homepage trigger (from your manifest; can be the same as sidebar)
-function onHomepage() {
-  showSidebar();
+// Placeholder functions for links (use Browser.msgBox or UrlFetch for alerts if needed)
+function openLink() {
+  // Replace with your doc URL
+  SpreadsheetApp.getUi().alert('Opening Documentation...');
+  // To actually open: Use HTML sidebar with <a> tag or client-side window.open, but for security, alert user.
 }
+
+function openTemplates() {
+  SpreadsheetApp.getUi().alert('Opening Templates...');
+  // Link: https://your-site/templates
+}
+
+function openHelpCenter() {
+  SpreadsheetApp.getUi().alert('Opening Help Center...');
+  // Link: https://help.dividenddata.com
+}
+
+function openPayment() {
+  SpreadsheetApp.getUi().alert('Opening Customer Portal...');
+  // Link: Your payment page
+}
+
+function openFeedback() {
+  SpreadsheetApp.getUi().alert('Opening Feedback Form...');
+  // Link: Google Form or your site
+}
+
+function showOnboarding() {
+  SpreadsheetApp.getUi().alert('Welcome! Sign in via the Dividend Data menu to start.');
+}
+
+
