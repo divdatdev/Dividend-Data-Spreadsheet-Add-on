@@ -1,4 +1,4 @@
-# Dividend Data Spreadsheet Add-on Documentation
+# Dividend Data Add-on Documentation
 This add-on provides custom functions for fetching stock data from Dividend Data. It includes tools for dividends, statements, metrics, ratios, growth, quotes, profiles, funds, segments, KPIs, commodities, and batch quotes/dividends.
 To use, install the add-on in Google Sheets and use the functions in cells.
 
