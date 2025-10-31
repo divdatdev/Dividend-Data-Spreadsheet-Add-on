@@ -50,6 +50,16 @@ _Available metrics:_
 
 _(The data above is formatted. In reality, it will return the raw numbers. You can choose how to format within the returned cells.)_
 
+**Input**: `=DIVIDENDDATA("MSFT", "summary")`
+
+**Output**: Table with headers and current full historical dividend data.
+
+| Annual Dividend (FWD)	| Dividend Yield (FWD)	| Annual Dividend (TTM)	| Dividend Yield (TTM)	| Payment Frequency	| 1 Year CAGR |	3 Year CAGR |	5 Year CAGR |	10 Year CAGR |	Payout Ratio (Net Income) |	Payout Ratio (Free Cash Flow) |
+| ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
+| $3.64 |	0.70% |	$3.32 |	0.64% |	Quarterly |	9.64% |	10.1% |	10.1% |	9.7% |	23.64% |	33.62% |
+
+_(The data above is formatted. In reality, it will return the raw numbers. You can choose how to format within the returned cells.)_
+
 
 ## 2) DIVIDENDDATA_BATCH
 ### Description
