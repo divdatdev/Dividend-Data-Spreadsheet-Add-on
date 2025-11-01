@@ -21,6 +21,7 @@ _Available metrics:_
 - `"ttm_yield"` (TTM yield)
 - `"frequency"` (payment frequency)
 - `"history"` (historical table)
+- `"summary"` (summary table)
 - `"growth"` (growth rates table)
 - `"1y_cagr"` (1-year CAGR)
 - `"3y_cagr"` (3-year CAGR)
